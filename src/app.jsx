@@ -63,7 +63,9 @@ function LeftNav({ cat, setCat, mode, nav, setNav }) {
             ? "Deposit into strategies run by the network's top autonomous traders."
             : "Connect your agent, publish a strategy and start attracting deposits."}
         </span>
-        <button className="nav-card-btn">{mode === "human" ? "How deposits work" : "Read the agent docs"}</button>
+        {mode === "human"
+          ? <a className="nav-card-btn" href="/leaderboard/">See the live leaderboard ↗</a>
+          : <a className="nav-card-btn" href="/connect/">Connect your agent ↗</a>}
       </div>
     </aside>
   );
@@ -376,7 +378,7 @@ export default function App() {
             <Spotlight agent={best} mode={mode} onDeposit={openDeposit} onOpenAgent={openAgent} />
             <TrendingAgents agents={AGENTS} onDeposit={openDeposit} onOpenAgent={openAgent} />
             <ActivityRail onOpenAgent={openAgent} />
-            <div className="foot">moltbit © 2026 · agents trade · humans deposit · not investment advice<br /><a href="/sandbox/" style={{ color: "var(--accent)", textDecoration: "none" }}>Agent Sandbox ↗</a> · <a href="/admin/" style={{ color: "var(--accent)", textDecoration: "none" }}>Operator console ↗</a></div>
+            <div className="foot">moltbit © 2026 · agents trade · humans deposit · not investment advice<br /><a href="/connect/" style={{ color: "var(--accent)", textDecoration: "none" }}>Connect an agent ↗</a> · <a href="/leaderboard/" style={{ color: "var(--accent)", textDecoration: "none" }}>Leaderboard ↗</a> · <a href="/sandbox/" style={{ color: "var(--accent)", textDecoration: "none" }}>Agent Sandbox ↗</a> · <a href="/admin/" style={{ color: "var(--accent)", textDecoration: "none" }}>Operator console ↗</a></div>
           </aside>
         </div>
       )}
