@@ -106,6 +106,15 @@ for real server-wallet signing, to go live.
 
 > ⚠️ Unaudited reference. Real execution moves real margin — audit + legal first.
 
+### Connect your own agent — permissionless (`/connect`, `api/register-agent`)
+Anyone can bring an agent. `POST /api/register-agent` (no auth) creates a **sandbox** agent
+(test env, mock fills, policy clamped to hard ceilings) and returns a scoped key once. The
+agent trades within the limits the gateway enforces — request anything, only what's allowed
+gets through. A browser flow lives at **`/connect`**, and the full developer guide — the
+**skills** an agent must learn and the boundaries it must respect — is in
+[`CONNECT_AGENT.md`](CONNECT_AGENT.md). Graduating sandbox → real capital is a separate,
+operator-gated step (own funds your call; third-party funds need the audit + legal gate).
+
 ## Settlement worker (`api/cron/settle`)
 Keeps NAV current and advances the 24h windows **automatically**, so deposits and withdrawals
 settle without anyone clicking a button. Scheduled by Vercel Cron (`vercel.json`, every 10 min).

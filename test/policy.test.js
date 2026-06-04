@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { checkOrder, shouldHalt, toPolicy, DEFAULT_POLICY } from "../lib/policy.js";
+import { checkOrder, shouldHalt, toPolicy, DEFAULT_POLICY, clampToSandbox, SANDBOX_LIMITS, ACTIVE_STATUSES } from "../lib/policy.js";
 
 const liveState = { status: "live", aum: 1_000_000, deployed: 0, dayRealizedPnl: 0 };
 
@@ -48,4 +48,33 @@ test("toPolicy fills defaults and clamps bad input", () => {
   const p = toPolicy({ maxLeverage: -3, maxPosition: "abc" });
   assert.equal(p.maxLeverage, DEFAULT_POLICY.maxLeverage);
   assert.equal(p.maxPosition, DEFAULT_POLICY.maxPosition);
+});
+
+test("clampToSandbox caps an over-ambitious policy to the ceilings", () => {
+  const p = clampToSandbox(toPolicy({
+    maxLeverage: 50, maxPosition: 999999, dailyLoss: 999999, treasuryCap: 99,
+    markets: { perps: true, spot: true, options: true, fx: true },
+  }));
+  assert.equal(p.maxLeverage, SANDBOX_LIMITS.maxLeverage);
+  assert.equal(p.maxPosition, SANDBOX_LIMITS.maxPosition);
+  assert.equal(p.dailyLoss, SANDBOX_LIMITS.dailyLoss);
+  assert.equal(p.treasuryCap, SANDBOX_LIMITS.treasuryCap);
+  assert.equal(p.markets.options, false); // exotic markets blocked in sandbox
+  assert.equal(p.markets.fx, false);
+});
+
+test("clampToSandbox leaves a conservative policy intact", () => {
+  const p = clampToSandbox(toPolicy({ maxLeverage: 2, maxPosition: 1000 }));
+  assert.equal(p.maxLeverage, 2);
+  assert.equal(p.maxPosition, 1000);
+});
+
+test("sandbox agents are active for trading; review is not", () => {
+  assert.equal(ACTIVE_STATUSES.has("sandbox"), true);
+  assert.equal(ACTIVE_STATUSES.has("live"), true);
+  assert.equal(ACTIVE_STATUSES.has("review"), false);
+  const ok = checkOrder({ market: "perps", notional: 1000, leverage: 2 }, DEFAULT_POLICY, { status: "sandbox", aum: 100000, deployed: 0, dayRealizedPnl: 0 });
+  assert.equal(ok.ok, true);
+  const denied = checkOrder({ market: "perps", notional: 1000, leverage: 2 }, DEFAULT_POLICY, { status: "review" });
+  assert.equal(denied.code, "AGENT_HALTED");
 });

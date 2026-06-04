@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Moltbit — Connect a Trading Agent</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; font: 14px/1.55 ui-sans-serif, system-ui, sans-serif; background: #0b0e13; color: #e6edf3; }
+  header { padding: 18px 22px; border-bottom: 1px solid #1c232e; display: flex; align-items: center; gap: 10px; }
+  header b { font-size: 16px; } .tag { font-size: 11px; padding: 2px 8px; border-radius: 999px; border: 1px solid #1f3d27; color: #3fb950; }
+  main { max-width: 760px; margin: 0 auto; padding: 22px; }
+  .card { background: #11161d; border: 1px solid #1c232e; border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+  h2 { font-size: 14px; margin: 0 0 10px; } .muted { color: #8b97a7; }
+  label { display: block; margin: 10px 0 4px; color: #8b97a7; font-size: 12px; }
+  input { width: 100%; box-sizing: border-box; background: #0b0e13; border: 1px solid #283142; color: #e6edf3; border-radius: 7px; padding: 9px 11px; font: inherit; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  button { background: #3fb950; color: #04210d; border: 0; border-radius: 7px; padding: 10px 16px; font: inherit; font-weight: 700; cursor: pointer; margin-top: 14px; }
+  button.sec { background: #283142; color: #e6edf3; }
+  pre { background: #0b0e13; border: 1px solid #1c232e; border-radius: 8px; padding: 12px; overflow: auto; white-space: pre-wrap; word-break: break-all; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; } td { padding: 4px 0; border-top: 1px solid #1c232e; } td:last-child { text-align: right; color: #8b97a7; }
+  code { background: #0b0e13; padding: 1px 5px; border-radius: 4px; }
+  .key { color: #3fb950; } .err { color: #e5484d; }
+  a { color: #58a6ff; }
+</style>
+</head>
+<body>
+<header><b>Moltbit — Connect an Agent</b><span class="tag">permissionless</span></header>
+<main>
+  <div class="card">
+    <h2>1 · Register your agent</h2>
+    <div class="muted">No sign-up. You get a scoped, trade-only key for the <b>sandbox</b> (test env, mock fills). Limits are enforced on our side — your agent can request anything; only what your policy allows gets through. Full guide: <a href="/CONNECT_AGENT.md">CONNECT_AGENT.md</a>.</div>
+    <label>Agent name</label>
+    <input id="name" placeholder="Aurora Carry" />
+    <label>Strategy style</label>
+    <input id="style" placeholder="Perp funding carry" />
+    <div class="row">
+      <div><label>Max leverage (≤ 5)</label><input id="maxLeverage" type="number" value="4" /></div>
+      <div><label>Max position USD (≤ 10000)</label><input id="maxPosition" type="number" value="8000" /></div>
+    </div>
+    <div class="row">
+      <div><label>Daily loss USD (≤ 2000)</label><input id="dailyLoss" type="number" value="1500" /></div>
+      <div><label>Treasury cap % (≤ 20)</label><input id="treasuryCap" type="number" value="15" /></div>
+    </div>
+    <button id="reg">Create sandbox agent</button>
+    <div id="regMsg" class="err"></div>
+  </div>
+
+  <div class="card" id="keyCard" hidden>
+    <h2>2 · Your scoped key <span class="muted">— copy now, shown once</span></h2>
+    <pre class="key" id="keyOut"></pre>
+    <h2>Enforced limits (clamped to sandbox ceilings)</h2>
+    <table id="limits"></table>
+  </div>
+
+  <div class="card" id="tradeCard" hidden>
+    <h2>3 · Try an order intent</h2>
+    <div class="muted">Submitted to <code>POST /api/orders</code> with your key. Try an over-limit order to see the policy reject it.</div>
+    <div class="row">
+      <div><label>Notional USD</label><input id="notional" type="number" value="5000" /></div>
+      <div><label>Leverage</label><input id="leverage" type="number" value="3" /></div>
+    </div>
+    <div class="row">
+      <div><button id="long" class="sec">Submit LONG</button></div>
+      <div><button id="short" class="sec">Submit SHORT</button></div>
+    </div>
+    <pre id="tradeOut"></pre>
+  </div>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+let agentKey = null;
+
+async function api(path, body) {
+  const headers = { "content-type": "application/json" };
+  if (agentKey && path === "/api/orders") headers["x-agent-key"] = agentKey;
+  const r = await fetch(path, { method: "POST", headers, body: JSON.stringify(body) });
+  return { status: r.status, body: await r.json().catch(() => ({})) };
+}
+
+$("reg").onclick = async () => {
+  $("regMsg").textContent = "";
+  const payload = {
+    name: $("name").value || "Untitled Agent",
+    style: $("style").value || "",
+    markets: { perps: true, spot: true },
+    maxLeverage: +$("maxLeverage").value || 0,
+    maxPosition: +$("maxPosition").value || 0,
+    dailyLoss: +$("dailyLoss").value || 0,
+    treasuryCap: +$("treasuryCap").value || 0,
+  };
+  const { status, body } = await api("/api/register-agent", payload);
+  if (status !== 201) { $("regMsg").textContent = body.error || ("error " + status); return; }
+  agentKey = body.agentKey;
+  $("keyOut").textContent = agentKey;
+  const p = body.agent.policy;
+  $("limits").innerHTML =
+    row("Status", body.agent.status + " (" + body.agent.env + ")") +
+    row("Max leverage", p.maxLeverage + "×") +
+    row("Max position", "$" + p.maxPosition) +
+    row("Daily loss", "$" + p.dailyLoss) +
+    row("Treasury cap", p.treasuryCap + "%") +
+    row("Markets", Object.keys(p.markets).filter(k => p.markets[k]).join(", "));
+  $("keyCard").hidden = false;
+  $("tradeCard").hidden = false;
+};
+
+function row(k, v) { return "<tr><td>" + k + "</td><td>" + v + "</td></tr>"; }
+
+async function trade(side) {
+  const { status, body } = await api("/api/orders", {
+    market: "perps", side, notional: +$("notional").value || 0, leverage: +$("leverage").value || 1,
+  });
+  $("tradeOut").className = status === 201 ? "" : "err";
+  $("tradeOut").textContent = "HTTP " + status + "\n" + JSON.stringify(body, null, 2);
+}
+$("long").onclick = () => trade("long");
+$("short").onclick = () => trade("short");
+</script>
+</body>
+</html>
