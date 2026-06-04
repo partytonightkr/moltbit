@@ -34,13 +34,19 @@ data). **Live** (Base mainnet, real depositor capital) is hard-gated behind
       Keys are versioned (`mbk_<env>_<id>.<kid>.<sig>`); `rotate`/`revoke`/`restore`
       via `PATCH /api/agents`; gateway enforces `keyActive`; prod fails closed on a
       weak/missing secret. *Still TODO: set the real secret in the env.*
-- [ ] `VENUE_MODE=live` with a real venue client (`lib/venue.js → submitLive`).
-- [ ] Privy **server wallet** configured (`PRIVY_APP_SECRET`); scoped to allocate-only per vault.
+- [~] `VENUE_MODE=live` with a real venue client (`lib/venue.js → submitLive`).
+      Implemented: generic authenticated REST client (`VENUE_API_URL`/`VENUE_API_KEY`)
+      with normalized fills. *Still TODO: point at your venue + adapt `normalizeFill`
+      to its schema; exercise on testnet.*
+- [~] Privy **server wallet** configured; scoped to allocate-only per vault.
+      Implemented: real calldata (viem) for allocate/reportNav/crank/setPaused/
+      returnFromVenue, submitted via Privy REST (`lib/chainServer.js`). *Still TODO:
+      set `PRIVY_APP_ID`+`PRIVY_APP_SECRET`, scope the wallet policy, exercise on testnet.*
 - [ ] Policy limits load from on-chain/governance, not just the create payload.
 - [~] Kill switch tested end-to-end (UI → gateway → vault pause → flatten).
-      Backend wired: `POST /api/kill` halts the agent (gateway then denies orders),
-      pauses the vault (`setPaused`) and flattens (mock-safe), and pages ops. *Still
-      TODO: wire the UI button to the endpoint and exercise on-chain on testnet.*
+      Wired end to end: operator console at `/ops` → `POST /api/kill` → halt (gateway
+      denies orders) → vault `setPaused` → flatten/return (real calldata, mock-safe
+      until Privy keys are set) → ops alert. *Still TODO: exercise on-chain on testnet.*
 
 ## 3. Settlement
 - [ ] `CRON_SECRET` set; cron running on a schedule that matches the 24h windows.
