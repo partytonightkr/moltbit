@@ -5,6 +5,7 @@
 // (mock-safe until the server wallet is live), and pages ops. Exits stay open on
 // every vault — depositors can always redeem. Idempotent: re-running is harmless.
 import { getCollection, setCollection, STORE_MODE } from "../lib/store.js";
+import { safeBody } from "../lib/reqbody.js";
 import { requireAuth } from "../lib/auth.js";
 import { haltAgent } from "../lib/killSwitch.js";
 import { pauseVaultOnchain, SERVER_WALLET_MODE } from "../lib/serverWallet.js";
@@ -16,7 +17,7 @@ export default async function handler(req, res) {
   const session = requireAuth(req, res);
   if (!session) return;
 
-  const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : (req.body || {});
+  const body = safeBody(req);
   const by = session.sub || session.user || "operator";
   const reason = body.reason || "GLOBAL PAUSE";
 

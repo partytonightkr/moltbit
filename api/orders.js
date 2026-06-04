@@ -9,6 +9,7 @@
 // The agent never moves funds. Margin movement to the venue is done by the gateway
 // via the Privy SERVER wallet (lib/serverWallet.js), scoped to allocate-only.
 import { getCollection, setCollection } from "../lib/store.js";
+import { safeBody } from "../lib/reqbody.js";
 import { requireAgent, keyActive } from "../lib/agentAuth.js";
 import { checkOrder, shouldHalt, DEFAULT_POLICY } from "../lib/policy.js";
 import { submitOrder, VENUE_MODE } from "../lib/venue.js";
@@ -37,7 +38,7 @@ export default async function handler(req, res) {
   if (!auth) return;
   const { agentId, env } = auth;
 
-  const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : (req.body || {});
+  const body = safeBody(req);
   const order = {
     market: body.market,
     side: body.side === "short" ? "short" : "long",

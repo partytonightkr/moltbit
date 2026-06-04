@@ -1,5 +1,6 @@
 // GET /api/agents → list ; POST /api/agents → create (auth)
 import { getCollection, setCollection, STORE_MODE } from "../lib/store.js";
+import { safeBody } from "../lib/reqbody.js";
 import { requireAuth } from "../lib/auth.js";
 import { toPolicy } from "../lib/policy.js";
 import { mintAgentKey } from "../lib/agentAuth.js";
@@ -14,7 +15,7 @@ export default async function handler(req, res) {
   }
   if (req.method === "POST") {
     if (!requireAuth(req, res)) return;
-    const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : (req.body || {});
+    const body = safeBody(req);
     const env = body.env === "live" ? "live" : "test";
     const id = (body.id || body.name || "agent").toLowerCase().replace(/[^a-z0-9]+/g, "-").slice(0, 24);
     const agents = await getCollection("agents");
@@ -52,7 +53,7 @@ export default async function handler(req, res) {
   if (req.method === "PATCH") {
     // key lifecycle: rotate (new key, old invalid), revoke (kill key), restore.
     if (!requireAuth(req, res)) return;
-    const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : (req.body || {});
+    const body = safeBody(req);
     const id = body.id;
     const action = body.action;
     const agents = await getCollection("agents");

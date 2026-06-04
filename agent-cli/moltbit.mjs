@@ -99,6 +99,9 @@ async function cmdRun(cfg, stratPath, intervalSec) {
   let stop = false;
   process.on("SIGINT", () => { stop = true; process.stdout.write("\n👋 stopped\n"); process.exit(0); });
 
+  // warn once if the host won't persist the agent
+  try { const h = await getJson(`${cfg.host}/api/health`); if (h && h.persistent === false) console.warn("⚠ ephemeral store — your agent may reset on a cold start.\n"); } catch { /* non-fatal */ }
+
   // intent feed seeded from history
   const seed = await fetchState(cfg);
   fills = (seed.orders || []).map((o) => ({ ts: o.ts, side: o.order?.side, market: o.order?.market, notional: o.order?.notional, leverage: o.order?.leverage, status: o.status, code: o.code }));
@@ -127,6 +130,11 @@ async function cmdRun(cfg, stratPath, intervalSec) {
       // redraw
       process.stdout.write("\x1b[2J\x1b[H");
       process.stdout.write(renderDashboard({ ...flat(cfg, agent), fills, tick, intervalSec, strategyName, lastError }) + "\n");
+    } else {
+      // reachable but no agent record (e.g. ephemeral store reset) — tell the user plainly
+      process.stdout.write("\x1b[2J\x1b[H");
+      process.stdout.write(`Waiting for agent ${cfg.agentId} on ${cfg.host} …\n`);
+      process.stdout.write("  " + (lastError || "not found yet — if the store is ephemeral it may have reset; re-register with `moltbit register`.") + "\n");
     }
     await sleep(intervalSec * 1000);
   }
@@ -145,14 +153,90 @@ async function cmdCertify(cfg) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+function parseFlags(rest) {
+  const o = {};
+  for (let i = 0; i < rest.length; i++) {
+    if (rest[i].startsWith("--")) {
+      const k = rest[i].slice(2);
+      const v = rest[i + 1] && !rest[i + 1].startsWith("--") ? rest[++i] : "true";
+      o[k] = v;
+    }
+  }
+  return o;
+}
+
+function credHost() {
+  if (process.env.MOLTBIT_HOST) return process.env.MOLTBIT_HOST;
+  try { return JSON.parse(fs.readFileSync(CRED, "utf8")).host; } catch { return null; }
+}
+
+// `moltbit register --host https://… --name "My Bot" [--maxLeverage 4 …]`
+// One command: register a sandbox agent and save the key to ~/.moltbit/credentials.
+async function cmdRegister(rest) {
+  const f = parseFlags(rest);
+  const host = (f.host || process.env.MOLTBIT_HOST || "").replace(/\/$/, "");
+  if (!host) { console.error('✗ host required:  moltbit register --host https://<moltbit-host> --name "My Bot"'); process.exit(2); }
+  const payload = { name: f.name || "My Agent", style: f.style || "", markets: { perps: true, spot: true } };
+  for (const k of ["maxLeverage", "maxPosition", "dailyLoss", "treasuryCap"]) if (f[k] != null) payload[k] = Number(f[k]);
+  let body;
+  try {
+    const r = await fetch(`${host}/api/register-agent`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(payload) });
+    body = await r.json();
+    if (!r.ok) throw new Error(body.error || ("HTTP " + r.status));
+  } catch (e) { console.error("✗ register failed: " + (e.message || e)); process.exit(1); }
+
+  fs.mkdirSync(path.dirname(CRED), { recursive: true });
+  fs.writeFileSync(CRED, JSON.stringify({ host, key: body.agentKey }, null, 2), { mode: 0o600 });
+  console.log(`✅ Registered ${body.agent.id} [${body.agent.status}] on ${host}`);
+  console.log(`   key saved to ${CRED} (chmod 600) — it is not shown again`);
+  console.log(`   limits: ${JSON.stringify(body.agent.policy)}`);
+  if (body.warning) console.log("   ⚠ " + body.warning);
+  console.log("\nNext:");
+  console.log("  cp agent-cli/strategy.example.mjs ./strategy.mjs   # then edit it");
+  console.log(`  node ${path.basename(process.argv[1])} run ./strategy.mjs`);
+}
+
+// `moltbit doctor` — verify the host is reachable + how it's wired, before onboarding.
+async function cmdDoctor() {
+  const host = (credHost() || "").replace(/\/$/, "");
+  if (!host) { console.error("✗ no host. Set MOLTBIT_HOST or run `moltbit register --host …`."); process.exit(2); }
+  try {
+    const h = await getJson(`${host}/api/health`);
+    if (!h.ok) throw new Error("unexpected response");
+    console.log(`host ${host} → ok`);
+    console.log(`  store: ${h.store} ${h.persistent ? "(persistent)" : "(ephemeral — agents may reset)"}`);
+    console.log(`  venue: ${h.venue} · serverWallet: ${h.serverWallet} · marks: ${h.marks} · liveEnabled: ${h.liveEnabled}`);
+    if (h.warning) console.log("  ⚠ " + h.warning);
+  } catch (e) { console.error("✗ host unreachable or unhealthy: " + (e.message || e)); process.exit(1); }
+  if (process.env.MOLTBIT_AGENT_KEY || fs.existsSync(CRED)) {
+    try {
+      const cfg = loadConfig();
+      const { agent } = await fetchState(cfg);
+      console.log(agent ? `  agent ${agent.id} [${agent.status}] found` : "  ⚠ agent NOT found on host (ephemeral reset? re-register).");
+    } catch { /* config/agent check is best-effort */ }
+  }
+}
+
 (async function main() {
   const [cmd, ...rest] = process.argv.slice(2);
+  if (!cmd || cmd === "help" || cmd === "-h" || cmd === "--help") {
+    console.log("moltbit <command>\n");
+    console.log("  register --host <url> --name <name>   create a sandbox agent + save the key");
+    console.log("  doctor                                check the host is reachable + how it's wired");
+    console.log("  run ./strategy.mjs                    run your strategy with a live dashboard");
+    console.log("  status                                one-shot dashboard snapshot");
+    console.log("  whoami                                show the agent your key maps to");
+    console.log("  certify                               run the skills check + stamp your agent");
+    process.exit(0);
+  }
+  if (cmd === "register") return cmdRegister(rest);
+  if (cmd === "doctor") return cmdDoctor();
   const cfg = loadConfig();
   const interval = Math.max(2, Number(process.env.MOLTBIT_INTERVAL || 5));
   if (cmd === "run") return cmdRun(cfg, rest[0] || "./strategy.mjs", interval);
   if (cmd === "status") return cmdStatus(cfg);
   if (cmd === "whoami") return cmdWhoami(cfg);
   if (cmd === "certify") return cmdCertify(cfg);
-  console.log("usage: moltbit <run ./strategy.mjs | status | whoami | certify>");
+  console.log("usage: moltbit <register | doctor | run ./strategy.mjs | status | whoami | certify>");
   process.exit(cmd ? 1 : 0);
 })();

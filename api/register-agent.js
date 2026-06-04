@@ -7,6 +7,7 @@
 // REQUEST anything; only what policy allows gets through. Graduating to real capital
 // (live env, a funded vault) is a separate, operator-gated step (see CONNECT_AGENT.md).
 import { getCollection, setCollection, STORE_MODE } from "../lib/store.js";
+import { safeBody } from "../lib/reqbody.js";
 import { toPolicy, clampToSandbox, SANDBOX_LIMITS } from "../lib/policy.js";
 import { mintAgentKey } from "../lib/agentAuth.js";
 
@@ -14,7 +15,7 @@ const slug = (s) => String(s || "agent").toLowerCase().replace(/[^a-z0-9]+/g, "-
 
 export default async function handler(req, res) {
   if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
-  const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : (req.body || {});
+  const body = safeBody(req);
 
   // unique id: a slug of the name plus a short random suffix (no squatting / collisions)
   const id = `${slug(body.name || body.id)}-${Math.random().toString(36).slice(2, 6)}`;
@@ -56,5 +57,7 @@ export default async function handler(req, res) {
       rules: "orders are enforced against your policy; rejections return 403 with a code",
     },
     store: STORE_MODE,
+    warning: STORE_MODE === "kv" ? null
+      : "Ephemeral store: this agent may reset on a cold start. Fine for trying it out; provision Vercel KV for persistence.",
   });
 }

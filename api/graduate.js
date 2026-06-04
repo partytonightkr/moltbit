@@ -7,6 +7,7 @@
 //         pairIndex?, policy? }   (policy = the per-strategy LIVE caps, not clamped)
 // Issues a fresh key for the target env and returns it once (the old key is superseded).
 import { getCollection, setCollection, STORE_MODE } from "../lib/store.js";
+import { safeBody } from "../lib/reqbody.js";
 import { requireAuth } from "../lib/auth.js";
 import { toPolicy } from "../lib/policy.js";
 import { mintAgentKey } from "../lib/agentAuth.js";
@@ -17,7 +18,7 @@ export default async function handler(req, res) {
   const session = requireAuth(req, res);
   if (!session) return;
 
-  const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : (req.body || {});
+  const body = safeBody(req);
   const agentId = body.agentId;
   if (!agentId) { res.status(400).json({ error: "agentId required" }); return; }
 

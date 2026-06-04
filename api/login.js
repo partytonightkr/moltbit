@@ -1,5 +1,6 @@
 // POST /api/login  { password } → { token }
 import { signToken, secretConfigured, IS_PROD } from "../lib/auth.js";
+import { safeBody } from "../lib/reqbody.js";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") { res.status(405).json({ error: "Method not allowed" }); return; }
@@ -10,7 +11,7 @@ export default async function handler(req, res) {
     res.status(503).json({ error: "OPERATOR_PASSWORD not set" });
     return;
   }
-  const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : (req.body || {});
+  const body = safeBody(req);
   const expected = process.env.OPERATOR_PASSWORD || "moltbit-demo"; // dev-only default
   if (!body.password || body.password !== expected) {
     res.status(401).json({ error: "invalid password" });
