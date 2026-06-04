@@ -41,7 +41,10 @@
   <div class="card" id="agentsCard" hidden>
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px">
       <b>Agents</b>
-      <button id="refreshBtn" class="secondary">Refresh</button>
+      <div style="display:flex; gap:8px">
+        <button id="refreshBtn" class="secondary">Refresh</button>
+        <button id="pauseAllBtn">PAUSE ALL</button>
+      </div>
     </div>
     <div class="muted" style="margin-bottom:8px">Halting an agent stops its orders at the gateway, pauses its vault on-chain, and flattens positions. Exits stay open.</div>
     <div id="agents"></div>
@@ -74,27 +77,44 @@ async function login() {
   } catch (e) { $("loginMsg").textContent = e.message; }
 }
 
-function pill(status) {
+function pillEl(status) {
   const s = (status || "review").toLowerCase();
-  return '<span class="pill ' + s + '">' + s + "</span>";
+  const el = document.createElement("span");
+  el.className = "pill " + s;
+  el.textContent = s;
+  return el;
 }
 
 async function showAgents() {
   $("loginCard").hidden = true;
   $("agentsCard").hidden = false;
   const { agents } = await api("/api/agents");
-  $("agents").innerHTML = "";
+  $("agents").textContent = "";
   (agents || []).forEach((a) => {
     const row = document.createElement("div");
     row.className = "agent";
     const halted = a.status === "halted" || a.status === "paused";
-    row.innerHTML =
-      '<div class="meta"><div><b>' + (a.name || a.id) + "</b> " + pill(a.status) + "</div>" +
-      "<small>" + a.id + " · " + (a.env || "test") + " · AUM $" + (a.aum || 0) + "M · deployed $" + (a.deployed || 0) + "</small></div>";
+
+    // Build with textContent — never innerHTML — so agent name/id can't inject HTML.
+    const meta = document.createElement("div");
+    meta.className = "meta";
+    const title = document.createElement("div");
+    const name = document.createElement("b");
+    name.textContent = a.name || a.id;
+    title.appendChild(name);
+    title.appendChild(document.createTextNode(" "));
+    title.appendChild(pillEl(a.status));
+    const sub = document.createElement("small");
+    sub.textContent = a.id + " · " + (a.env || "test") + " · AUM $" + (a.aum || 0) + "M · deployed $" + (a.deployed || 0);
+    meta.appendChild(title);
+    meta.appendChild(sub);
+
     const btn = document.createElement("button");
     btn.textContent = halted ? "Halted" : "HALT";
     btn.disabled = halted;
     btn.onclick = () => kill(a.id, a.name || a.id);
+
+    row.appendChild(meta);
     row.appendChild(btn);
     $("agents").appendChild(row);
   });
@@ -105,17 +125,35 @@ async function kill(agentId, name) {
   try {
     const res = await api("/api/kill", { method: "POST", body: JSON.stringify({ agentId, reason: "operator console" }) });
     $("resultCard").hidden = false;
+    $("result").className = "";
     $("result").textContent = JSON.stringify(res, null, 2);
     showAgents();
   } catch (e) {
     $("resultCard").hidden = false;
-    $("result").innerHTML = '<span class="err">' + e.message + "</span>";
+    $("result").className = "err";
+    $("result").textContent = e.message;
+  }
+}
+
+async function pauseAll() {
+  if (!confirm("GLOBAL PAUSE — halt every agent and pause every vault? Exits stay open.")) return;
+  try {
+    const res = await api("/api/pause-all", { method: "POST", body: JSON.stringify({ reason: "operator console — global pause" }) });
+    $("resultCard").hidden = false;
+    $("result").className = "";
+    $("result").textContent = JSON.stringify(res, null, 2);
+    showAgents();
+  } catch (e) {
+    $("resultCard").hidden = false;
+    $("result").className = "err";
+    $("result").textContent = e.message;
   }
 }
 
 $("loginBtn").onclick = login;
 $("pw").addEventListener("keydown", (e) => { if (e.key === "Enter") login(); });
 $("refreshBtn").onclick = showAgents;
+$("pauseAllBtn").onclick = pauseAll;
 if (token) showAgents().catch(() => { token = null; sessionStorage.removeItem("moltbit_ops_token"); $("loginCard").hidden = false; $("agentsCard").hidden = true; });
 </script>
 </body>

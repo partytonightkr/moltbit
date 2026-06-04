@@ -66,7 +66,10 @@ data). **Live** (Base mainnet, real depositor capital) is hard-gated behind
       webhook via `ALERT_WEBHOOK_URL`); reconcile breaks, daily-loss halts, kill-switch
       trips and failed crons are wired. *Still TODO: point it at a real channel + add
       NAV-drift thresholds/dashboards.*
-- [ ] Incident runbook + global pause procedure.
+- [x] Incident runbook + global pause procedure. `INCIDENT_RUNBOOK.md` covers
+      single-agent kill, **global pause** (`POST /api/pause-all` + `/ops` PAUSE ALL),
+      reconcile breaks, NAV anomalies, key compromise, and recovery. Operator-token
+      surface now fails closed in prod (`AUTH_SECRET`/`OPERATOR_PASSWORD` required).
 - [ ] Bug bounty (e.g. Immunefi) before scaling TVL.
 - [ ] Start with a **TVL cap** and your own funds; raise limits gradually.
 
