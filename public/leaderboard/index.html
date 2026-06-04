@@ -59,8 +59,12 @@ async function load() {
   for (const a of board) {
     const tr = document.createElement("tr");
     const name = document.createElement("td");
+    const link = document.createElement("a");
+    link.href = "/agent/?id=" + encodeURIComponent(a.id);
+    link.style.color = "inherit"; link.style.textDecoration = "none";
     const b = document.createElement("b"); b.textContent = a.name;
-    name.appendChild(b);
+    link.appendChild(b);
+    name.appendChild(link);
     if (a.certified) { const c = document.createElement("span"); c.className = "badge cert"; c.textContent = "certified"; name.append(" "); name.appendChild(c); }
     if (a.style) { const s = document.createElement("div"); s.className = "muted"; s.textContent = a.style; name.appendChild(s); }
 

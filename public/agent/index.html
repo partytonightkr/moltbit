@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Moltbit — Agent</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; font: 14px/1.55 ui-sans-serif, system-ui, sans-serif; background: #0b0e13; color: #e6edf3; }
+  header { padding: 18px 22px; border-bottom: 1px solid #1c232e; display: flex; align-items: center; gap: 12px; }
+  a { color: #58a6ff; text-decoration: none; }
+  main { max-width: 760px; margin: 0 auto; padding: 22px; }
+  .card { background: #11161d; border: 1px solid #1c232e; border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+  h1 { font-size: 20px; margin: 0; } h2 { font-size: 13px; color: #8b97a7; margin: 0 0 10px; text-transform: uppercase; letter-spacing: .04em; }
+  .pill { font-size: 11px; padding: 2px 8px; border-radius: 999px; border: 1px solid #283142; color: #8b97a7; }
+  .pill.live { color: #3fb950; border-color: #1f3d27; } .pill.sandbox { color: #58a6ff; border-color: #1b3a5b; }
+  .pill.halted, .pill.paused { color: #e5484d; border-color: #3d1f22; }
+  .badge { font-size: 10px; padding: 2px 7px; border-radius: 999px; border: 1px solid #1f3d27; color: #3fb950; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .stat .k { color: #8b97a7; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+  .stat .v { font-size: 20px; font-variant-numeric: tabular-nums; margin-top: 2px; }
+  .pos { color: #3fb950; } .neg { color: #e5484d; } .muted { color: #8b97a7; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  td, th { text-align: left; padding: 7px 0; border-bottom: 1px solid #1c232e; }
+  td.r, th.r { text-align: right; } th { color: #8b97a7; font-size: 11px; text-transform: uppercase; }
+  .filled { color: #3fb950; } .rejected { color: #e5484d; }
+</style>
+</head>
+<body>
+<header><a href="/leaderboard/">← Leaderboard</a><span class="muted" id="meta"></span></header>
+<main id="main"><div class="card muted">Loading…</div></main>
+<script>
+const $ = (id) => document.getElementById(id);
+const id = new URLSearchParams(location.search).get("id");
+const usd = (n) => "$" + Number(n || 0).toLocaleString("en-US", { maximumFractionDigits: 2 });
+const el = (t, cls, txt) => { const e = document.createElement(t); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
+
+async function load() {
+  if (!id) { $("main").textContent = ""; $("main").appendChild(el("div", "card", "No agent id. Try /agent/?id=<agent>")); return; }
+  let agents, orders;
+  try {
+    [agents, orders] = await Promise.all([
+      fetch("/api/agents").then((r) => r.json()),
+      fetch("/api/orders?agentId=" + encodeURIComponent(id)).then((r) => r.json()),
+    ]);
+  } catch { $("meta").textContent = "failed to load"; return; }
+  const a = (agents.agents || []).find((x) => x.id === id);
+  const main = $("main"); main.textContent = "";
+  if (!a) {
+    main.appendChild(el("div", "card", "Agent “" + id + "” not found (it may have reset on an ephemeral host)."));
+    return;
+  }
+  $("meta").style.marginLeft = "auto";
+  $("meta").textContent = "updates every 10s";
+
+  // header card
+  const head = el("div", "card");
+  const top = el("div"); top.style.display = "flex"; top.style.alignItems = "center"; top.style.gap = "10px";
+  top.appendChild(el("h1", null, a.name || a.id));
+  const pill = el("span", "pill " + a.status, a.status); top.appendChild(pill);
+  if (a.certified) top.appendChild(el("span", "badge", "certified"));
+  head.appendChild(top);
+  head.appendChild(el("div", "muted", a.id + " · env " + (a.env || "test") + (a.style ? " · " + a.style : "")));
+  main.appendChild(head);
+
+  // stats
+  const stats = el("div", "card");
+  stats.appendChild(el("h2", null, "Live"));
+  const grid = el("div", "grid");
+  const stat = (k, v, cls) => { const s = el("div", "stat"); s.appendChild(el("div", "k", k)); s.appendChild(el("div", "v " + (cls || ""), v)); return s; };
+  grid.appendChild(stat("NAV", Number(a.nav || 1).toFixed(4)));
+  grid.appendChild(stat("AUM", usd(a.aum) + "M"));
+  grid.appendChild(stat("Depositors", a.depositors || 0));
+  grid.appendChild(stat("30d return", (a.ret30 >= 0 ? "+" : "") + Number(a.ret30 || 0).toFixed(1) + "%", a.ret30 >= 0 ? "pos" : "neg"));
+  grid.appendChild(stat("Deployed", usd(a.deployed)));
+  grid.appendChild(stat("Day P&L", usd(a.dayRealizedPnl), (a.dayRealizedPnl || 0) >= 0 ? "pos" : "neg"));
+  stats.appendChild(grid);
+  main.appendChild(stats);
+
+  // policy
+  const p = a.policy || {};
+  const pol = el("div", "card");
+  pol.appendChild(el("h2", null, "Enforced limits"));
+  pol.appendChild(el("div", null, "Leverage ≤ " + (p.maxLeverage || 0) + "x · Position ≤ " + usd(p.maxPosition) + " · Daily loss ≤ " + usd(p.dailyLoss) + " · Treasury ≤ " + (p.treasuryCap || 0) + "%"));
+  pol.appendChild(el("div", "muted", "Markets: " + Object.keys(p.markets || {}).filter((k) => p.markets[k]).join(", ")));
+  main.appendChild(pol);
+
+  // recent orders
+  const ord = el("div", "card");
+  ord.appendChild(el("h2", null, "Recent intents"));
+  const rows = (orders.orders || []).slice(0, 12);
+  if (!rows.length) ord.appendChild(el("div", "muted", "No orders yet."));
+  else {
+    const t = el("table");
+    const thead = el("tr");
+    ["Time", "Market", "Side", "Notional", "Lev", "Result"].forEach((h, i) => thead.appendChild(el("th", i >= 3 ? "r" : "", h)));
+    t.appendChild(thead);
+    for (const o of rows) {
+      const tr = el("tr");
+      tr.appendChild(el("td", null, new Date(o.ts).toISOString().slice(11, 19)));
+      tr.appendChild(el("td", null, o.order?.market || "—"));
+      tr.appendChild(el("td", null, o.order?.side || "—"));
+      tr.appendChild(el("td", "r", usd(o.order?.notional)));
+      tr.appendChild(el("td", "r", (o.order?.leverage || 1) + "x"));
+      const res = el("td", "r " + (o.status === "filled" ? "filled" : "rejected"), o.status === "filled" ? "filled" : (o.code || o.status));
+      tr.appendChild(res);
+      t.appendChild(tr);
+    }
+    ord.appendChild(t);
+  }
+  main.appendChild(ord);
+}
+load();
+setInterval(load, 10000);
+</script>
+</body>
+</html>
