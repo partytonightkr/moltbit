@@ -24,16 +24,17 @@ contract MockAvantisTrading is IAvantisTrading {
     constructor(address usdc_) { usdc = IERC20(usdc_); }
     function setPnl(int256 p) external { pnlOnClose = p; }
 
-    function openTrade(Trade calldata t, uint8, uint256, uint256) external payable override {
+    function openTrade(Trade calldata t, uint8, uint256) external payable override {
         // pull the collateral the adapter approved (margin lock)
         usdc.safeTransferFrom(msg.sender, address(this), t.positionSizeUSDC);
     }
 
-    function closeTradeMarket(uint256, uint256, uint256 collateralToClose, uint256) external payable override {
+    function closeTradeMarket(uint256, uint256, uint256 collateralToClose) external payable override returns (uint256) {
         uint256 payout = pnlOnClose >= 0
             ? collateralToClose + uint256(pnlOnClose)
             : collateralToClose - uint256(-pnlOnClose);
         usdc.safeTransfer(msg.sender, payout);
+        return 0;
     }
 }
 
@@ -57,7 +58,8 @@ contract MoltbitAvantisAdapterTest is Test {
         vm.prank(admin);
         vault = new MoltbitVault("Moltbit Avantis", "mAVT", address(usdc), 2000, admin, keeper, agent);
 
-        adapter = new MoltbitAvantisAdapter(address(vault), address(usdc), address(trading), admin, keeper);
+        // mock doubles as Trading + TradingStorage (collateral approval target)
+        adapter = new MoltbitAvantisAdapter(address(vault), address(usdc), address(trading), address(trading), admin, keeper);
 
         // whitelist the adapter as the vault's venue
         vm.prank(admin);
@@ -84,14 +86,14 @@ contract MoltbitAvantisAdapterTest is Test {
 
         // keeper opens a 5k-margin long; the mock locks the margin
         vm.prank(keeper);
-        adapter.openTrade(0, true, 5_000 * ONE, 0, 5 * 1e10, 0, 0, 0, 0, 0);
+        adapter.openTrade(0, true, 5_000 * ONE, 0, 5 * 1e10, 0, 0, 0, 0);
         assertEq(adapter.idleUsdc(), 0);
         assertEq(usdc.balanceOf(address(trading)), 105_000 * ONE); // buffer + locked margin
 
         // strategy made +500 USDC; keeper closes at market
         trading.setPnl(int256(500 * ONE));
         vm.prank(keeper);
-        adapter.closeTrade(0, 0, 5_000 * ONE, 0);
+        adapter.closeTrade(0, 0, 5_000 * ONE);
         assertEq(adapter.idleUsdc(), 5_500 * ONE);
 
         // sweep the freed USDC back into the vault
@@ -110,11 +112,11 @@ contract MoltbitAvantisAdapterTest is Test {
         vm.prank(agent);
         vault.allocate(address(adapter), 4_000 * ONE);
         vm.prank(keeper);
-        adapter.openTrade(0, false, 4_000 * ONE, 0, 3 * 1e10, 0, 0, 0, 0, 0);
+        adapter.openTrade(0, false, 4_000 * ONE, 0, 3 * 1e10, 0, 0, 0, 0);
 
         trading.setPnl(-int256(1_000 * ONE)); // -1000 USDC
         vm.prank(keeper);
-        adapter.closeTrade(0, 0, 4_000 * ONE, 0);
+        adapter.closeTrade(0, 0, 4_000 * ONE);
         assertEq(adapter.idleUsdc(), 3_000 * ONE);
 
         vm.prank(keeper);
@@ -131,11 +133,11 @@ contract MoltbitAvantisAdapterTest is Test {
 
         vm.expectRevert();
         vm.prank(alice);
-        adapter.openTrade(0, true, 1_000 * ONE, 0, 2 * 1e10, 0, 0, 0, 0, 0);
+        adapter.openTrade(0, true, 1_000 * ONE, 0, 2 * 1e10, 0, 0, 0, 0);
 
         vm.expectRevert();
         vm.prank(alice);
-        adapter.closeTrade(0, 0, 1_000 * ONE, 0);
+        adapter.closeTrade(0, 0, 1_000 * ONE);
 
         // keeper can; vault can also pull idle back
         vm.prank(keeper);

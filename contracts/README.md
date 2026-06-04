@@ -76,9 +76,9 @@ each vault's allowed venue via `setVenue`.
 ## Remaining hardening before mainnet
 - Audit (Trail of Bits / Spearbit / Cantina tier).
 - NAV oracle hardening (attestations, bounds, timelock).
-- Per-venue adapter contracts: `src/adapters/MoltbitAvantisAdapter.sol` (Base perps) +
-  `IMoltbitVenueAdapter` are in place and tested; pin the Avantis ABI from Basescan, audit,
-  and add a SynFutures adapter. Bring-up steps: `BRINGUP_BASE_PERPS.md`.
+- Per-venue adapter contracts: `src/adapters/{MoltbitAvantisAdapter,MoltbitSynFuturesAdapter}.sol`
+  + `IMoltbitVenueAdapter` are in place and tested (Avantis reconciled vs the SDK; SynFutures
+  bit-packed calldata). Audit + Basescan cross-check before real funds. Bring-up: `BRINGUP_BASE_PERPS.md`.
 - Multisig (Safe) for `DEFAULT_ADMIN_ROLE`; separate hot keeper key with least privilege.
 - ~~Fee logic (10% performance fee shown in UI)~~ — **done**: high-water-mark fee accrued as
   minted shares on each new NAV high (`perfFeeBps`, `feeRecipient`).

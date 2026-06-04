@@ -13,33 +13,39 @@ interface IMoltbitVault {
 }
 
 /**
- * @notice Avantis (Base) perp DEX — the gTrade/Tigris-style trading contract. Exact ABI
- *         must be PINNED FROM THE DEPLOYED CONTRACT ON BASESCAN before mainnet use; the
- *         field set/decimals below match the Avantis SDK `OpenTradeParams`
- *         (positionSizeUSDC 6dp; openPrice/leverage/tp/sl 10dp) but the on-chain struct
- *         layout and selectors are authoritative. Treated as an integration seam.
+ * @notice Avantis (Base) perp DEX — gTrade/Tigris-style. Signatures + struct verified
+ *         against the official Avantis integration SDK (Avantis-Labs/avantisfi-integration):
+ *           - openTrade(Trade, uint8 orderType, uint256 slippageP) is PAYABLE; the keeper-bot
+ *             execution fee is sent as msg.value (wei), NOT a function argument.
+ *           - the Trade tuple is 11 fields ending at `timestamp` (the SDK's 12th `liqPrice`
+ *             field is NOT part of the on-chain struct).
+ *           - collateral (USDC) is approved to TradingStorage, not Trading.
+ *         Decimals: positionSizeUSDC 6dp; openPrice/leverage/tp/sl/slippageP 10dp.
  *
- *  ⚠️ VERIFY against https://basescan.org before deploying with real funds.
+ *  Base mainnet: Trading 0x44914408af82bc9983bbb330e3578e1105e11d4e,
+ *                TradingStorage 0x8a311D7048c35985aa31C131B9A13e03a5f7422d,
+ *                USDC 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913.
+ *  orderType enum: MARKET=0, STOP_LIMIT=1, LIMIT=2, MARKET_PNL=3.
+ *  ⚠️ Still re-verify enum names / internal transfer logic against the Basescan source
+ *     before real size; SDK ABIs are authoritative for encoding but not the deployed source.
  */
 interface IAvantisTrading {
     struct Trade {
         address trader;
         uint256 pairIndex;
-        uint256 index;
-        uint256 initialPosToken; // bookkeeping; set 0 on open
+        uint256 index; // 0 on open
+        uint256 initialPosToken; // 0 on open
         uint256 positionSizeUSDC; // 6dp collateral
         uint256 openPrice; // 10dp (0 = market)
         bool buy; // long/short
         uint256 leverage; // 10dp
         uint256 tp; // 10dp (0 = none)
         uint256 sl; // 10dp (0 = none)
-        uint256 timestamp;
+        uint256 timestamp; // 0 on open
     }
 
-    function openTrade(Trade calldata t, uint8 orderType, uint256 slippageP, uint256 executionFee) external payable;
-    function closeTradeMarket(uint256 pairIndex, uint256 index, uint256 collateralToClose, uint256 executionFee)
-        external
-        payable;
+    function openTrade(Trade calldata t, uint8 orderType, uint256 slippageP) external payable;
+    function closeTradeMarket(uint256 pairIndex, uint256 index, uint256 amount) external payable returns (uint256);
 }
 
 /**
@@ -63,6 +69,8 @@ contract MoltbitAvantisAdapter is IMoltbitVenueAdapter, AccessControl, Reentranc
     address public immutable override vault;
     IERC20 public immutable usdc;
     IAvantisTrading public immutable trading;
+    /// @notice USDC collateral is approved to TradingStorage (Avantis pulls it here), not Trading.
+    address public immutable tradingStorage;
 
     event Opened(uint256 indexed pairIndex, bool buy, uint256 marginUsdc, uint256 leverage);
     event Closed(uint256 indexed pairIndex, uint256 indexed index, uint256 collateralToClose);
@@ -70,10 +78,11 @@ contract MoltbitAvantisAdapter is IMoltbitVenueAdapter, AccessControl, Reentranc
 
     error NothingIdle();
 
-    constructor(address vault_, address usdc_, address trading_, address admin, address keeper) {
+    constructor(address vault_, address usdc_, address trading_, address tradingStorage_, address admin, address keeper) {
         vault = vault_;
         usdc = IERC20(usdc_);
         trading = IAvantisTrading(trading_);
+        tradingStorage = tradingStorage_;
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(KEEPER_ROLE, keeper);
     }
@@ -100,11 +109,10 @@ contract MoltbitAvantisAdapter is IMoltbitVenueAdapter, AccessControl, Reentranc
         uint256 tp, // 10dp
         uint256 sl, // 10dp
         uint8 orderType,
-        uint256 slippageP, // 10dp
-        uint256 executionFee
+        uint256 slippageP // 10dp
     ) external payable onlyRole(KEEPER_ROLE) nonReentrant {
-        // approve exactly the margin Avantis will pull as collateral
-        usdc.forceApprove(address(trading), marginUsdc);
+        // approve exactly the margin Avantis pulls as collateral (into TradingStorage)
+        usdc.forceApprove(tradingStorage, marginUsdc);
         IAvantisTrading.Trade memory t = IAvantisTrading.Trade({
             trader: address(this),
             pairIndex: pairIndex,
@@ -116,20 +124,22 @@ contract MoltbitAvantisAdapter is IMoltbitVenueAdapter, AccessControl, Reentranc
             leverage: leverage,
             tp: tp,
             sl: sl,
-            timestamp: block.timestamp
+            timestamp: 0
         });
-        trading.openTrade{value: executionFee}(t, orderType, slippageP, executionFee);
+        // execution fee for the keeper-bot layer is forwarded as msg.value
+        trading.openTrade{value: msg.value}(t, orderType, slippageP);
         emit Opened(pairIndex, buy, marginUsdc, leverage);
     }
 
     /// @notice Close (or partially close) an open Avantis position at market.
-    function closeTrade(uint256 pairIndex, uint256 index, uint256 collateralToClose, uint256 executionFee)
+    ///         `collateralToClose` is 6dp USDC; execution fee is forwarded as msg.value.
+    function closeTrade(uint256 pairIndex, uint256 index, uint256 collateralToClose)
         external
         payable
         onlyRole(KEEPER_ROLE)
         nonReentrant
     {
-        trading.closeTradeMarket{value: executionFee}(pairIndex, index, collateralToClose, executionFee);
+        trading.closeTradeMarket{value: msg.value}(pairIndex, index, collateralToClose);
         emit Closed(pairIndex, index, collateralToClose);
     }
 

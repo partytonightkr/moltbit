@@ -16,22 +16,34 @@ MoltbitVault (USDC, Base)
 The adapter is the position owner (`trader = address(this)`), so the vault only ever sends
 USDC to a whitelisted **contract** — the non-custodial guarantee holds.
 
-## 0. Pin the venue ABI/addresses (do this FIRST)
-`IAvantisTrading` in `MoltbitAvantisAdapter.sol` matches the Avantis SDK field set, but the
-**on-chain struct layout and selectors are authoritative**. Before deploying:
-- [ ] Open the Avantis **Trading** contract on https://basescan.org → copy the verified ABI.
-- [ ] Reconcile `openTrade` / `closeTradeMarket` signatures + the `Trade` struct field order
-      and decimals (positionSizeUSDC 6dp; openPrice/leverage/tp/sl 10dp) against the adapter.
-      Fix the interface if they differ, then re-run the adapter tests.
-- [ ] Note the Trading contract address, the USDC address (`0x8335…2913` on Base mainnet),
-      and the `pairIndex` for the market you want (e.g. ETH/USD).
-- [ ] Confirm whether Avantis pulls collateral via `transferFrom` on `openTrade` (the adapter
-      `forceApprove`s the margin) or via a separate storage contract — adjust the approve target.
+## 0. Avantis addresses + verification (Base mainnet)
+The adapter's `IAvantisTrading` is reconciled against the official Avantis integration SDK
+(`Avantis-Labs/avantisfi-integration`): `openTrade(Trade, uint8 orderType, uint256 slippageP)`
+is **payable** (execution fee = msg.value, wei); the `Trade` tuple is **11 fields** ending at
+`timestamp`; collateral is approved to **TradingStorage** (not Trading).
 
-> SynFutures path: same adapter pattern, but it routes through the **Gate** contract
-> (`0x208B443983D8BcC8578e9D86Db23FbA547071270` on Base) + instrument/vault contracts and an
-> order-book fill. Build `MoltbitSynFuturesAdapter` implementing `IMoltbitVenueAdapter` once
-> Avantis is proven; Avantis (single market call) is the simpler first integration.
+Verified addresses:
+- **Trading:** `0x44914408af82bc9983bbb330e3578e1105e11d4e`
+- **TradingStorage:** `0x8a311D7048c35985aa31C131B9A13e03a5f7422d` (USDC approval target)
+- **USDC:** `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` (6dp)
+- **orderType enum:** MARKET=0, STOP_LIMIT=1, LIMIT=2, MARKET_PNL=3
+- `pairIndex`: the asset index for your market (e.g. ETH/USD) — read from the Avantis SDK/docs.
+
+Residual check before real size:
+- [ ] Cross-check the enum names + the internal `transferFrom` (Trading→TradingStorage) against
+      the **Basescan-verified source** (the SDK ABI is authoritative for encoding, not the
+      deployed source). Use a Basescan/Etherscan API key from your own infra to pull the ABI.
+
+> **SynFutures path (`MoltbitSynFuturesAdapter`, built):** routes through the **Gate**
+> (`0x208B443983D8BcC8578e9D86Db23FbA547071270`) + a per-market **Instrument**. Calldata is
+> bit-packed `bytes32` (verified against `SynFutures/oyster-sdk`): Gate `deposit`/`withdraw`
+> take `token | quantity<<160` (USDC 6dp); Instrument `trade([page0,page1])` packs
+> `expiry|limitTick<<32|deadline<<56` and `amount | size<<128` (margin/size 18dp, direction =
+> sign of size, `PERP_EXPIRY = 2^32-1`). Flow: approve Gate → `depositMargin` → `trade` →
+> `withdrawMargin` → `returnIdleToVault`. **The keeper computes `limitTick`/`size`/`amount`
+> off-chain with the SynFutures SDK** (oracle/tick math can't run on-chain), and the per-market
+> **Instrument address** must come from the docs/Observer. Start with Avantis (one market call);
+> SynFutures when you want the Oyster AMM book.
 
 ## 1. Compile + test the contracts
 ```bash
@@ -52,10 +64,12 @@ forge create src/MoltbitVault.sol:MoltbitVault \
   --rpc-url $BASE_RPC_URL --private-key $PRIVATE_KEY --verify \
   --constructor-args "Moltbit Avantis ETH" "mAVTE" <USDC> 2000 <ADMIN> <KEEPER> <AGENT>
 
-# adapter (vault, USDC, Avantis Trading, admin, keeper)
+# adapter (vault, USDC, Avantis Trading, Avantis TradingStorage, admin, keeper)
 forge create src/adapters/MoltbitAvantisAdapter.sol:MoltbitAvantisAdapter \
   --rpc-url $BASE_RPC_URL --private-key $PRIVATE_KEY --verify \
-  --constructor-args <VAULT> <USDC> <AVANTIS_TRADING> <ADMIN> <KEEPER>
+  --constructor-args <VAULT> 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913 \
+    0x44914408af82bc9983bbb330e3578e1105e11d4e 0x8a311D7048c35985aa31C131B9A13e03a5f7422d \
+    <ADMIN> <KEEPER>
 ```
 
 ## 3. Wire it up

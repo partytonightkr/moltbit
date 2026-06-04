@@ -24,10 +24,12 @@ data). **Live** (Base mainnet, real depositor capital) is hard-gated behind
       still TODO: signed venue attestations, multi-keeper, timelock/oracle. A single trusted
       keeper remains the largest trust assumption today.
 - [~] Per-venue **adapter contracts** (so "venue" is an audited strategy adapter, not an EOA).
-      `MoltbitAvantisAdapter` (Base, gTrade-style perps) + `IMoltbitVenueAdapter` interface
-      built and unit-tested (allocate→open→close→returnFromVenue). *Still TODO: pin the
-      Avantis ABI/addresses from Basescan, audit, and add a SynFutures adapter. See
-      `contracts/BRINGUP_BASE_PERPS.md`.*
+      `IMoltbitVenueAdapter` + two adapters built and unit-tested: `MoltbitAvantisAdapter`
+      (gTrade-style, signatures/addresses reconciled vs the Avantis SDK) and
+      `MoltbitSynFuturesAdapter` (Oyster AMM, bit-packed calldata vs the oyster-sdk). The
+      gateway routes `venueKind:onchain` agents through the adapter (allocate→open→close→
+      returnFromVenue). *Still TODO: audit; cross-check enum/internal logic on Basescan;
+      keeper computes SynFutures tick/size off-chain. See `contracts/BRINGUP_BASE_PERPS.md`.*
 - [ ] `DEFAULT_ADMIN_ROLE` on a **multisig** (Safe); keeper is a separate least-privilege key.
 - [x] Performance-fee accrual implemented + tested (the 10% shown in the UI) — high-water-mark
       fee minted as shares to `feeRecipient` on each new NAV high; covered by Foundry tests.
