@@ -3,3 +3,6 @@ dist
 .DS_Store
 *.log
 .vercel
+# Deps are resolved via .npmrc (legacy-peer-deps); no lockfile is committed so
+# Vercel's install resolution is not pinned by a locally-generated lock.
+package-lock.json

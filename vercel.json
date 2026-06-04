@@ -4,5 +4,17 @@
       "path": "/api/cron/settle",
       "schedule": "0 0 * * *"
     }
+  ],
+  "rewrites": [
+    { "source": "/api/register-agent", "destination": "/api/router?r=register-agent" },
+    { "source": "/api/register-vault", "destination": "/api/router?r=register-vault" },
+    { "source": "/api/certify", "destination": "/api/router?r=certify" },
+    { "source": "/api/graduate", "destination": "/api/router?r=graduate" },
+    { "source": "/api/kill", "destination": "/api/router?r=kill" },
+    { "source": "/api/pause-all", "destination": "/api/router?r=pause-all" },
+    { "source": "/api/leaderboard", "destination": "/api/router?r=leaderboard" },
+    { "source": "/api/marks", "destination": "/api/router?r=marks" },
+    { "source": "/api/health", "destination": "/api/router?r=health" },
+    { "source": "/api/vault", "destination": "/api/router?r=vault" }
   ]
 }

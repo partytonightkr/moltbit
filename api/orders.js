@@ -9,10 +9,12 @@
 // The agent never moves funds. Margin movement to the venue is done by the gateway
 // via the Privy SERVER wallet (lib/serverWallet.js), scoped to allocate-only.
 import { getCollection, setCollection } from "../lib/store.js";
-import { requireAgent } from "../lib/agentAuth.js";
+import { safeBody } from "../lib/reqbody.js";
+import { requireAgent, keyActive } from "../lib/agentAuth.js";
 import { checkOrder, shouldHalt, DEFAULT_POLICY } from "../lib/policy.js";
 import { submitOrder, VENUE_MODE } from "../lib/venue.js";
-import { allocateToVenue, SERVER_WALLET_MODE } from "../lib/serverWallet.js";
+import { allocateToVenue, openVenuePosition, SERVER_WALLET_MODE } from "../lib/serverWallet.js";
+import { alert } from "../lib/alert.js";
 
 export default async function handler(req, res) {
   if (req.method === "GET") {
@@ -36,7 +38,7 @@ export default async function handler(req, res) {
   if (!auth) return;
   const { agentId, env } = auth;
 
-  const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : (req.body || {});
+  const body = safeBody(req);
   const order = {
     market: body.market,
     side: body.side === "short" ? "short" : "long",
@@ -49,6 +51,13 @@ export default async function handler(req, res) {
   const ai = agents.findIndex((a) => a.id === agentId);
   if (ai < 0) { res.status(404).json({ error: "agent not found" }); return; }
   const agent = agents[ai];
+
+  // 2a. revocation / rotation gate — reject superseded or revoked keys
+  if (!keyActive(agent, auth.kid)) {
+    res.status(401).json({ error: "agent key revoked or superseded — rotate the key" });
+    return;
+  }
+
   const policy = agent.policy || DEFAULT_POLICY;
   const state = {
     status: agent.status === "live" ? "live" : agent.status, // live|paused|halted|review
@@ -65,14 +74,19 @@ export default async function handler(req, res) {
     return;
   }
 
-  // 4. move margin to the venue via the server wallet (allocate-only), then execute
+  // 4. push margin to the venue via the server wallet (allocate-only), then execute.
+  //    On-chain venues (agent.venueKind === "onchain") route to the adapter contract:
+  //    allocate(adapter, margin) → adapter.openTrade(...). Otherwise the HTTP venue.
   const margin = order.notional / Math.max(order.leverage, 1);
+  const onchain = agent.venueKind === "onchain" && !!agent.adapterAddress;
+  const venueTarget = onchain ? agent.adapterAddress : (agent.venue || "mock-venue");
+
   let alloc;
   try {
     alloc = await allocateToVenue({
       env,
       vaultAddress: agent.vaultAddress || null,
-      venue: agent.venue || "mock-venue",
+      venue: venueTarget,
       amountUsdc: margin,
       walletId: agent.serverWalletId || null,
     });
@@ -82,7 +96,40 @@ export default async function handler(req, res) {
     return;
   }
 
-  const exec = await submitOrder(order);
+  let exec;
+  try {
+    if (onchain) {
+      // open the position on the adapter (real calldata when the server wallet is live)
+      const open = await openVenuePosition({
+        env,
+        adapterAddress: agent.adapterAddress,
+        walletId: agent.serverWalletId || null,
+        pairIndex: Number(body.pairIndex ?? agent.pairIndex ?? 0),
+        buy: order.side === "long",
+        marginUsdc: margin,
+        leverage: order.leverage,
+        openPrice: Number(body.openPrice || 0), // 0 = market
+        slippagePct: Number(body.slippagePct ?? 1),
+        orderType: Number(body.orderType ?? 0),
+        executionFee: body.executionFee || 0,
+      });
+      // PnL/price realize on close; record the open tx as the fill reference.
+      exec = {
+        ok: true,
+        venue: "onchain",
+        fill: {
+          market: order.market, side: order.side, notional: order.notional, leverage: order.leverage,
+          qty: null, fillPrice: null, fee: 0, ts: Date.now(), txId: open.txHash,
+        },
+      };
+    } else {
+      exec = await submitOrder(order);
+    }
+  } catch (e) {
+    await record({ agentId, env, order, status: "error", reason: String(e.message || e), code: "EXEC_FAILED" });
+    res.status(502).json({ error: "execution failed", reason: String(e.message || e) });
+    return;
+  }
 
   // 5. record fill + update agent state
   const filled = await record({
@@ -102,6 +149,14 @@ export default async function handler(req, res) {
     lastFillAt: Date.now(),
   };
   await setCollection("agents", agents);
+
+  if (halted) {
+    await alert(
+      "agent.daily_loss_halt",
+      { agentId, env, dayRealizedPnl, dailyLoss: policy.dailyLoss, vaultAddress: agent.vaultAddress },
+      "error"
+    );
+  }
 
   res.status(201).json({
     ok: true,

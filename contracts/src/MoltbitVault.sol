@@ -21,12 +21,16 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
  *                    → settle / claim                     (claim)
  *           reconcile: Σ shares × NAV == reportedAssets
  *           circuit breaker: drawdown beyond ddHaltBps auto-pauses
+ *           performance fee: perfFeeBps of gains above the high-water mark,
+ *                            accrued as minted shares on each new high
+ *           keeper guardrail: per-report NAV moves bounded by maxNavDeltaBps
  *
  * @dev    ⚠️ UNAUDITED REFERENCE IMPLEMENTATION. Do not deploy to mainnet with
  *         real third-party funds before a professional audit AND legal sign-off.
  *         NAV here is reported by a trusted KEEPER (off-chain accounting of
- *         venue positions). A production system should harden NAV reporting
- *         (e.g. signed venue attestations, bounded deltas, timelocks).
+ *         venue positions). Per-report deltas are now bounded (maxNavDeltaBps),
+ *         but a production system should harden NAV reporting further
+ *         (e.g. signed venue attestations, multi-keeper, timelocks).
  */
 contract MoltbitVault is ERC20, AccessControl, ReentrancyGuard {
     using SafeERC20 for IERC20;
@@ -50,8 +54,29 @@ contract MoltbitVault is ERC20, AccessControl, ReentrancyGuard {
     /// @notice Drawdown halt threshold in basis points (e.g. 2000 = -20%).
     uint256 public ddHaltBps;
 
-    /// @notice High-water mark of price-per-share (scaled 1e6) for drawdown calc.
+    /// @notice High-water mark of price-per-share (scaled 1e6). Used both for the
+    ///         drawdown circuit breaker and as the threshold above which the
+    ///         performance fee accrues (so depositors are only charged on net
+    ///         new gains, never on a recovery back to a prior high).
     uint256 public highWaterPps;
+
+    // ----- performance fee (the 10% surfaced in the UI) -----
+    /// @notice Performance fee in basis points charged on gains above the
+    ///         high-water mark (1000 = 10%). Paid as freshly minted shares to
+    ///         `feeRecipient`, diluting holders by exactly the fee — no USDC
+    ///         leaves the vault on accrual, and the fee recipient redeems through
+    ///         the same NAV-struck queue as anyone else.
+    uint256 public perfFeeBps;
+    /// @notice Recipient of accrued performance-fee shares (manager/treasury).
+    address public feeRecipient;
+    uint256 public constant MAX_PERF_FEE_BPS = 3000; // hard cap: 30%
+
+    // ----- NAV reporting guardrail -----
+    /// @notice Max allowed per-epoch NAV move as bps of the current
+    ///         `reportedAssets` (5000 = ±50%). Bounds a compromised or buggy
+    ///         keeper so a single report cannot arbitrarily reprice shares.
+    ///         Set to 0 to disable the bound.
+    uint256 public maxNavDeltaBps;
 
     bool public paused; // deposits + agent allocation halted; exits still allowed
 
@@ -88,12 +113,18 @@ contract MoltbitVault is ERC20, AccessControl, ReentrancyGuard {
     event VenueSet(address indexed venue, bool allowed);
     event CircuitTripped(uint256 ppsDrawdownBps);
     event PausedSet(bool paused);
+    event PerfFeeAccrued(address indexed recipient, uint256 feeAssets, uint256 feeShares);
+    event PerfFeeSet(uint256 bps);
+    event FeeRecipientSet(address indexed recipient);
+    event MaxNavDeltaSet(uint256 bps);
 
     error NotAllowedVenue();
     error VaultPaused();
     error WindowNotElapsed();
     error BadState();
     error ZeroAmount();
+    error NavDeltaTooLarge();
+    error FeeTooHigh();
 
     constructor(
         string memory name_,
@@ -108,6 +139,9 @@ contract MoltbitVault is ERC20, AccessControl, ReentrancyGuard {
         ddHaltBps = ddHaltBps_;
         highWaterPps = NAV_ONE;
         reportedAssets = 0;
+        perfFeeBps = 1000; // 10% — matches the rate shown in the UI
+        feeRecipient = admin; // production should point this at a treasury/multisig
+        maxNavDeltaBps = 5000; // ±50% per-report guardrail on the keeper
         _grantRole(DEFAULT_ADMIN_ROLE, admin);
         _grantRole(KEEPER_ROLE, keeper);
         _grantRole(AGENT_ROLE, agent);
@@ -225,11 +259,50 @@ contract MoltbitVault is ERC20, AccessControl, ReentrancyGuard {
     //  KEEPER  — NAV reporting + settlement crank + circuit breaker
     // -------------------------------------------------------------------
     function reportNav(uint256 newReportedAssets) external onlyRole(KEEPER_ROLE) {
+        _checkNavDelta(newReportedAssets);
         reportedAssets = newReportedAssets;
         uint256 pps = pricePerShare();
-        if (pps > highWaterPps) highWaterPps = pps;
-        _checkCircuit(pps);
-        emit NavReported(newReportedAssets, pps);
+        if (pps > highWaterPps) {
+            // Accrue the performance fee on the gain above the prior high, then
+            // mark the (gross) new high so the same appreciation is never re-charged.
+            _accruePerfFee(pps);
+            highWaterPps = pps;
+        }
+        // Fee minting dilutes pps slightly; re-read for the circuit check + event.
+        uint256 ppsAfter = pricePerShare();
+        _checkCircuit(ppsAfter);
+        emit NavReported(newReportedAssets, ppsAfter);
+    }
+
+    /// @dev Reject reports that move NAV more than `maxNavDeltaBps` from the
+    ///      current baseline in a single epoch. No-op when disabled or at genesis.
+    function _checkNavDelta(uint256 newAssets) internal view {
+        uint256 cap = maxNavDeltaBps;
+        if (cap == 0) return; // bound disabled
+        uint256 base = reportedAssets;
+        if (base == 0) return; // no baseline yet (pre-first-deposit/report)
+        uint256 band = (base * cap) / 10_000;
+        if (newAssets > base + band) revert NavDeltaTooLarge();
+        if (newAssets + band < base) revert NavDeltaTooLarge(); // newAssets < base - band
+    }
+
+    /// @dev Mint fee shares worth `perfFeeBps` of the gain above the high-water
+    ///      mark to `feeRecipient`. Caller guarantees `pps > highWaterPps`.
+    function _accruePerfFee(uint256 pps) internal {
+        uint256 supply = totalSupply();
+        if (supply == 0 || perfFeeBps == 0 || feeRecipient == address(0)) return;
+        uint256 gainPerShare = pps - highWaterPps; // > 0 by caller guard
+        uint256 grossGain = (gainPerShare * supply) / NAV_ONE;
+        uint256 feeAssets = (grossGain * perfFeeBps) / 10_000;
+        if (feeAssets == 0) return;
+        uint256 backing = reportedAssets > pendingLiability ? reportedAssets - pendingLiability : 0;
+        if (feeAssets >= backing) return; // sanity guard (never reached in practice)
+        // Shares that, at the current backing, are worth exactly `feeAssets`
+        // post-mint. Identity: feeShares/(supply+feeShares) * backing == feeAssets.
+        uint256 feeShares = (feeAssets * supply) / (backing - feeAssets);
+        if (feeShares == 0) return;
+        _mint(feeRecipient, feeShares);
+        emit PerfFeeAccrued(feeRecipient, feeAssets, feeShares);
     }
 
     /// @notice Force-advance any settling withdrawals whose close deadline passed.
@@ -270,6 +343,25 @@ contract MoltbitVault is ERC20, AccessControl, ReentrancyGuard {
     function setVenue(address venue, bool allowed) external onlyRole(DEFAULT_ADMIN_ROLE) {
         allowedVenue[venue] = allowed;
         emit VenueSet(venue, allowed);
+    }
+
+    /// @notice Set the performance fee (bps). Capped at MAX_PERF_FEE_BPS.
+    function setPerfFee(uint256 bps) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (bps > MAX_PERF_FEE_BPS) revert FeeTooHigh();
+        perfFeeBps = bps;
+        emit PerfFeeSet(bps);
+    }
+
+    /// @notice Set the recipient of accrued performance-fee shares.
+    function setFeeRecipient(address r) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        feeRecipient = r;
+        emit FeeRecipientSet(r);
+    }
+
+    /// @notice Set the per-epoch NAV move bound (bps of current assets). 0 disables.
+    function setMaxNavDelta(uint256 bps) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        maxNavDeltaBps = bps;
+        emit MaxNavDeltaSet(bps);
     }
 
     /// @notice Kill switch. Admin or keeper can halt; exits stay open.

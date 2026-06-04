@@ -30,6 +30,11 @@ contract MoltbitVaultTest is Test {
         vault = new MoltbitVault("Moltbit Funding Harvest", "mFNDH3", address(usdc), 2000, admin, keeper, agent);
         vm.prank(admin);
         vault.setVenue(venue, true);
+        // The generic lifecycle/NAV tests below assert raw NAV mechanics; disable
+        // the performance fee here so those numbers stay clean. Fee behaviour is
+        // covered explicitly in the perf-fee tests, which re-enable it.
+        vm.prank(admin);
+        vault.setPerfFee(0);
 
         usdc.mint(alice, 100_000 * ONE);
         usdc.mint(bob, 100_000 * ONE);
@@ -148,6 +153,135 @@ contract MoltbitVaultTest is Test {
         // exits still allowed
         vm.prank(alice);
         vault.requestRedeem(1_000 * ONE);
+    }
+
+    // ---------------------------------------------------------------
+    //  Performance fee (10% on gains above the high-water mark)
+    // ---------------------------------------------------------------
+
+    // a new high accrues fee shares to the recipient worth ~10% of the gain
+    function test_PerfFeeAccruesOnNewHigh() public {
+        vm.prank(admin);
+        vault.setPerfFee(1000); // 10%
+
+        vm.prank(alice);
+        vault.deposit(10_000 * ONE, alice);
+
+        // +10% → 1,000 USDC gain above HWM; 10% fee = ~100 USDC to admin
+        vm.prank(keeper);
+        vault.reportNav(11_000 * ONE);
+
+        uint256 feeShares = vault.balanceOf(admin);
+        assertGt(feeShares, 0);
+        // fee recipient's shares are worth ~100 USDC (within 0.01)
+        assertApproxEqAbs(vault.convertToAssets(feeShares), 100 * ONE, 1e4);
+        // alice keeps her shares; net of the fee dilution she holds ~10,900 USDC
+        assertApproxEqAbs(vault.convertToAssets(vault.balanceOf(alice)), 10_900 * ONE, 1e6);
+
+        // minting fee shares preserves the reconcile identity
+        (bool balanced,) = vault.reconcile();
+        assertTrue(balanced);
+    }
+
+    // fee only charged on NEW highs — a recovery back to a prior high is free
+    function test_PerfFeeOnlyChargedAboveHighWater() public {
+        vm.prank(admin);
+        vault.setPerfFee(1000);
+        vm.prank(alice);
+        vault.deposit(10_000 * ONE, alice);
+
+        vm.prank(keeper);
+        vault.reportNav(11_000 * ONE); // new high → fee
+        uint256 sharesAfterHigh = vault.balanceOf(admin);
+        assertGt(sharesAfterHigh, 0);
+
+        vm.prank(keeper);
+        vault.reportNav(10_500 * ONE); // dip below HWM → no new fee
+        assertEq(vault.balanceOf(admin), sharesAfterHigh);
+
+        vm.prank(keeper);
+        vault.reportNav(11_000 * ONE); // recover to prior high → still no fee
+        assertEq(vault.balanceOf(admin), sharesAfterHigh);
+    }
+
+    // zero-fee config mints nothing even on a big gain
+    function test_PerfFeeZeroMintsNothing() public {
+        // setUp already set perfFee to 0
+        vm.prank(alice);
+        vault.deposit(10_000 * ONE, alice);
+        vm.prank(keeper);
+        vault.reportNav(15_000 * ONE);
+        assertEq(vault.balanceOf(admin), 0);
+    }
+
+    // ---------------------------------------------------------------
+    //  NAV delta guardrail (bounds a rogue/buggy keeper)
+    // ---------------------------------------------------------------
+
+    function test_NavDeltaBoundRejectsLargeMove() public {
+        vm.prank(alice);
+        vault.deposit(10_000 * ONE, alice); // baseline 10,000
+
+        vm.prank(admin);
+        vault.setMaxNavDelta(1000); // ±10%
+
+        vm.prank(keeper);
+        vm.expectRevert(MoltbitVault.NavDeltaTooLarge.selector);
+        vault.reportNav(12_000 * ONE); // +20% rejected
+
+        vm.prank(keeper);
+        vm.expectRevert(MoltbitVault.NavDeltaTooLarge.selector);
+        vault.reportNav(8_000 * ONE); // -20% rejected
+
+        vm.prank(keeper);
+        vault.reportNav(11_000 * ONE); // +10% exactly at bound → allowed
+        assertEq(vault.reportedAssets(), 11_000 * ONE);
+    }
+
+    function test_NavDeltaBoundDisabledAllowsAnyMove() public {
+        vm.prank(alice);
+        vault.deposit(10_000 * ONE, alice);
+        vm.prank(admin);
+        vault.setMaxNavDelta(0); // disabled
+        vm.prank(keeper);
+        vault.reportNav(50_000 * ONE); // +400% would normally be rejected
+        assertEq(vault.reportedAssets(), 50_000 * ONE);
+    }
+
+    // ---------------------------------------------------------------
+    //  Defaults + access control on the new setters
+    // ---------------------------------------------------------------
+
+    function test_ConstructorDefaults() public {
+        vm.prank(admin);
+        MoltbitVault v = new MoltbitVault("X", "X", address(usdc), 2000, admin, keeper, agent);
+        assertEq(v.perfFeeBps(), 1000);
+        assertEq(v.feeRecipient(), admin);
+        assertEq(v.maxNavDeltaBps(), 5000);
+    }
+
+    function test_OnlyAdminCanSetFeeAndNavParams() public {
+        vm.expectRevert();
+        vm.prank(alice);
+        vault.setPerfFee(500);
+
+        vm.expectRevert();
+        vm.prank(alice);
+        vault.setFeeRecipient(bob);
+
+        vm.expectRevert();
+        vm.prank(alice);
+        vault.setMaxNavDelta(1000);
+
+        // fee cap is enforced
+        vm.prank(admin);
+        vm.expectRevert(MoltbitVault.FeeTooHigh.selector);
+        vault.setPerfFee(3001);
+
+        // admin can set within the cap
+        vm.prank(admin);
+        vault.setPerfFee(3000);
+        assertEq(vault.perfFeeBps(), 3000);
     }
 
     function _w(uint256 id)

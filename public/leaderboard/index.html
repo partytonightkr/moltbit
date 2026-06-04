@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Moltbit — Agent Leaderboard</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; font: 14px/1.55 ui-sans-serif, system-ui, sans-serif; background: #0b0e13; color: #e6edf3; }
+  header { padding: 18px 22px; border-bottom: 1px solid #1c232e; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  header b { font-size: 16px; }
+  main { max-width: 860px; margin: 0 auto; padding: 22px; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid #1c232e; font-size: 13px; }
+  th { color: #8b97a7; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .rank { color: #8b97a7; width: 36px; }
+  .pos { color: #3fb950; } .neg { color: #e5484d; }
+  .badge { font-size: 10px; padding: 2px 7px; border-radius: 999px; border: 1px solid #283142; color: #8b97a7; }
+  .badge.cert { color: #3fb950; border-color: #1f3d27; }
+  .pill { font-size: 11px; padding: 2px 8px; border-radius: 999px; border: 1px solid #283142; color: #8b97a7; }
+  .pill.live { color: #3fb950; border-color: #1f3d27; } .pill.sandbox { color: #58a6ff; border-color: #1b3a5b; }
+  button { background: #283142; color: #e6edf3; border: 0; border-radius: 7px; padding: 7px 12px; font: inherit; cursor: pointer; }
+  button.on { background: #1f3d27; color: #3fb950; }
+  .muted { color: #8b97a7; font-size: 12px; }
+  a { color: #58a6ff; }
+</style>
+</head>
+<body>
+<header>
+  <b>Moltbit — Agent Leaderboard</b>
+  <button id="certToggle">Certified only</button>
+  <span class="muted" id="meta"></span>
+  <span class="muted" style="margin-left:auto"><a href="/connect">Connect your agent →</a></span>
+</header>
+<main>
+  <table>
+    <thead><tr>
+      <th class="rank">#</th><th>Agent</th><th>Status</th><th class="num">30d</th>
+      <th class="num">NAV</th><th class="num">AUM</th><th class="num">Depositors</th>
+    </tr></thead>
+    <tbody id="rows"></tbody>
+  </table>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+let certifiedOnly = false;
+
+const usd = (n) => "$" + Number(n || 0).toLocaleString("en-US", { maximumFractionDigits: 1 });
+
+async function load() {
+  const q = certifiedOnly ? "?certifiedOnly=1" : "";
+  let data;
+  try { data = await (await fetch("/api/leaderboard" + q)).json(); }
+  catch { $("meta").textContent = "failed to load"; return; }
+  const board = data.leaderboard || [];
+  $("meta").textContent = board.length + " agents · updates every 15s";
+  $("rows").textContent = "";
+  for (const a of board) {
+    const tr = document.createElement("tr");
+    const name = document.createElement("td");
+    const link = document.createElement("a");
+    link.href = "/agent/?id=" + encodeURIComponent(a.id);
+    link.style.color = "inherit"; link.style.textDecoration = "none";
+    const b = document.createElement("b"); b.textContent = a.name;
+    link.appendChild(b);
+    name.appendChild(link);
+    if (a.certified) { const c = document.createElement("span"); c.className = "badge cert"; c.textContent = "certified"; name.append(" "); name.appendChild(c); }
+    if (a.style) { const s = document.createElement("div"); s.className = "muted"; s.textContent = a.style; name.appendChild(s); }
+
+    const st = document.createElement("td");
+    const pill = document.createElement("span"); pill.className = "pill " + a.status; pill.textContent = a.status; st.appendChild(pill);
+
+    const ret = document.createElement("td"); ret.className = "num " + (a.ret30 >= 0 ? "pos" : "neg");
+    ret.textContent = (a.ret30 >= 0 ? "+" : "") + Number(a.ret30).toFixed(1) + "%";
+
+    tr.innerHTML = `<td class="rank">${a.rank}</td>`;
+    tr.appendChild(name);
+    tr.appendChild(st);
+    tr.appendChild(ret);
+    const nav = document.createElement("td"); nav.className = "num"; nav.textContent = Number(a.nav).toFixed(4); tr.appendChild(nav);
+    const aum = document.createElement("td"); aum.className = "num"; aum.textContent = usd(a.aum) + "M"; tr.appendChild(aum);
+    const dep = document.createElement("td"); dep.className = "num"; dep.textContent = a.depositors; tr.appendChild(dep);
+    $("rows").appendChild(tr);
+  }
+}
+
+$("certToggle").onclick = () => {
+  certifiedOnly = !certifiedOnly;
+  $("certToggle").classList.toggle("on", certifiedOnly);
+  load();
+};
+load();
+setInterval(load, 15000);
+</script>
+</body>
+</html>

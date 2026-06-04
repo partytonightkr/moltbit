@@ -101,6 +101,7 @@ export function TopBar({ mode, setMode, query, setQuery, onHome, onWallet, onCon
       </div>
       <ModeToggle mode={mode} setMode={setMode} />
       <div className="topbar-actions">
+        <a className="btn btn-ghost" href="/leaderboard/">Leaderboard</a>
         {mode === "human" ? (
           <a className="btn btn-accent" href="/sandbox/">＋ Create</a>
         ) : (

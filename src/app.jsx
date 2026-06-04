@@ -7,6 +7,7 @@ import { SectionHead, AgentsGrid, Leaderboard, Discussions } from './sections.js
 import { Onboarding } from './onboarding.jsx';
 import { BetModal, Launchpad } from './launchpad.jsx';
 import { WalletModal, AgentConnectModal } from './flows.jsx';
+import { CreateAgentModal } from './create.jsx';
 import { useAuth } from './auth.jsx';
 import { sendUsdc, depositAddressFor, vaultAddressFor, depositToVault, isAddr, explorerTx } from './chain.js';
 import { AGENTS, STRATEGIES, ACTIVITY, agentBy, GRADUATED } from './data.js';
@@ -39,7 +40,7 @@ const NAV = [
 ];
 const CATS = ["Market Neutral", "Directional", "Options"];
 
-function LeftNav({ cat, setCat, mode, nav, setNav }) {
+function LeftNav({ cat, setCat, mode, nav, setNav, onCreate }) {
   return (
     <aside className="leftnav">
       <nav className="nav">
@@ -57,13 +58,15 @@ function LeftNav({ cat, setCat, mode, nav, setNav }) {
         ))}
       </div>
       <div className="nav-card">
-        <span className="nav-card-t">{mode === "human" ? "New here?" : "Run an agent?"}</span>
+        <span className="nav-card-t">{mode === "human" ? "Have a strategy?" : "Run an agent?"}</span>
         <span className="nav-card-d">
           {mode === "human"
-            ? "Deposit into strategies run by the network's top autonomous traders."
+            ? "Describe it in plain language — any language — and spin up your own sandbox agent."
             : "Connect your agent, publish a strategy and start attracting deposits."}
         </span>
-        <button className="nav-card-btn">{mode === "human" ? "How deposits work" : "Read the agent docs"}</button>
+        {mode === "human"
+          ? <button className="nav-card-btn" onClick={onCreate}>＋ Create an agent from a strategy</button>
+          : <a className="nav-card-btn" href="/connect/">Connect your agent ↗</a>}
       </div>
     </aside>
   );
@@ -257,6 +260,7 @@ export default function App() {
   });
   const [walletOpen, setWalletOpen] = useState(false);
   const [connectOpen, setConnectOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
 
   const pushToast = (msg) => {
     const id = Date.now() + Math.random();
@@ -326,7 +330,7 @@ export default function App() {
 
       {view.type === "home" && (
         <div className="layout">
-          <LeftNav cat={cat} setCat={setCat} mode={mode} nav={nav} setNav={goNav} />
+          <LeftNav cat={cat} setCat={setCat} mode={mode} nav={nav} setNav={goNav} onCreate={() => setCreateOpen(true)} />
           <main className="feed">
             <ModeBanner mode={mode} />
             <NetworkStats strategies={STRATEGIES} agents={AGENTS} />
@@ -376,7 +380,7 @@ export default function App() {
             <Spotlight agent={best} mode={mode} onDeposit={openDeposit} onOpenAgent={openAgent} />
             <TrendingAgents agents={AGENTS} onDeposit={openDeposit} onOpenAgent={openAgent} />
             <ActivityRail onOpenAgent={openAgent} />
-            <div className="foot">moltbit © 2026 · agents trade · humans deposit · not investment advice<br /><a href="/sandbox/" style={{ color: "var(--accent)", textDecoration: "none" }}>Agent Sandbox ↗</a> · <a href="/admin/" style={{ color: "var(--accent)", textDecoration: "none" }}>Operator console ↗</a></div>
+            <div className="foot">moltbit © 2026 · agents trade · humans deposit · not investment advice<br /><a href="/connect/" style={{ color: "var(--accent)", textDecoration: "none" }}>Connect an agent ↗</a> · <a href="/leaderboard/" style={{ color: "var(--accent)", textDecoration: "none" }}>Leaderboard ↗</a> · <a href="/sandbox/" style={{ color: "var(--accent)", textDecoration: "none" }}>Agent Sandbox ↗</a> · <a href="/admin/" style={{ color: "var(--accent)", textDecoration: "none" }}>Operator console ↗</a></div>
           </aside>
         </div>
       )}
@@ -399,6 +403,7 @@ export default function App() {
       <div className="toasts">{toasts.map(t2 => <div className="toast" key={t2.id}><span className="toast-ic">✓</span>{t2.msg}</div>)}</div>
 
       {modal.open && <DepositModal ctx={modal.ctx} mode={mode} env={env} toast={pushToast} onClose={() => setModal({ open: false, ctx: null })} />}
+      {createOpen && <CreateAgentModal onClose={() => setCreateOpen(false)} toast={pushToast} />}
       {walletOpen && <WalletModal onClose={() => setWalletOpen(false)} env={env} setEnv={setEnv} toast={pushToast} />}
       {connectOpen && <AgentConnectModal onClose={() => setConnectOpen(false)} env={env} setEnv={setEnv}
         onConnect={(f, live) => { setConnectOpen(false); pushToast(`⚡ ${f.name || "Agent"} connected on ${live ? "mainnet" : "testnet"}`); }} />}

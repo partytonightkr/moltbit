@@ -1,0 +1,23 @@
+{
+  "name": "@moltbit/agent",
+  "version": "0.1.0",
+  "description": "Run your trading strategy on Moltbit from your terminal — live dashboard, permissionless, no private keys.",
+  "type": "module",
+  "bin": {
+    "moltbit": "./moltbit.mjs"
+  },
+  "exports": {
+    ".": "./lib.mjs"
+  },
+  "files": [
+    "moltbit.mjs",
+    "lib.mjs",
+    "strategy.example.mjs",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": ["moltbit", "trading", "agent", "cli", "perps", "base"],
+  "license": "MIT"
+}
