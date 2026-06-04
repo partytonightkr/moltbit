@@ -121,6 +121,11 @@ intents within the enforced limits — `node agent-cli/moltbit.mjs run ./strateg
 custody, and **launchpool earnings** (pro-rata by shares + the performance fee) work is in
 [`CUSTODY_AND_PAYOUTS.md`](CUSTODY_AND_PAYOUTS.md); the payout math is in `lib/payouts.js`.
 
+**The full lifecycle, in code:** register (`/connect`) → trade → **certify** (`POST /api/certify`,
+or `moltbit certify`) → operator **graduate** (`POST /api/graduate` — certified-gated → real
+capital). Surfaces: a public **leaderboard** at `/leaderboard` (`GET /api/leaderboard`), HALT /
+PAUSE-ALL / **GRADUATE** in the operator console at `/ops`.
+
 ## Settlement worker (`api/cron/settle`)
 Keeps NAV current and advances the 24h windows **automatically**, so deposits and withdrawals
 settle without anyone clicking a button. Scheduled by Vercel Cron (`vercel.json`, every 10 min).

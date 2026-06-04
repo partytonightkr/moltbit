@@ -109,15 +109,52 @@ async function showAgents() {
     meta.appendChild(title);
     meta.appendChild(sub);
 
+    const controls = document.createElement("div");
+    controls.style.display = "flex";
+    controls.style.gap = "8px";
+
+    // GRADUATE — only offered for certified agents that aren't live yet
+    if (a.certified && a.status !== "live") {
+      const grad = document.createElement("button");
+      grad.className = "secondary";
+      grad.textContent = "GRADUATE";
+      grad.onclick = () => graduate(a.id, a.name || a.id);
+      controls.appendChild(grad);
+    }
+
     const btn = document.createElement("button");
     btn.textContent = halted ? "Halted" : "HALT";
     btn.disabled = halted;
     btn.onclick = () => kill(a.id, a.name || a.id);
+    controls.appendChild(btn);
 
     row.appendChild(meta);
-    row.appendChild(btn);
+    row.appendChild(controls);
     $("agents").appendChild(row);
   });
+}
+
+async function graduate(agentId, name) {
+  const vaultAddress = prompt('Graduate "' + name + '" to LIVE.\n\nVault address (MoltbitVault):');
+  if (!vaultAddress) return;
+  const adapterAddress = prompt("Venue adapter address (optional — leave blank for HTTP venue):") || null;
+  const serverWalletId = prompt("Privy server wallet id (optional):") || null;
+  if (!confirm('Graduate "' + name + '" to real capital with vault ' + vaultAddress + "?")) return;
+  try {
+    const res = await api("/api/graduate", {
+      method: "POST",
+      body: JSON.stringify({ agentId, vaultAddress, adapterAddress, serverWalletId }),
+    });
+    $("resultCard").hidden = false;
+    $("result").className = "";
+    $("result").textContent =
+      "GRADUATED — copy the new live key now (shown once):\n\n" + res.agentKey + "\n\n" + JSON.stringify(res.agent, null, 2);
+    showAgents();
+  } catch (e) {
+    $("resultCard").hidden = false;
+    $("result").className = "err";
+    $("result").textContent = e.message;
+  }
 }
 
 async function kill(agentId, name) {
