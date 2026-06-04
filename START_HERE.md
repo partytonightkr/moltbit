@@ -74,6 +74,10 @@ This is the **only** step that isn't permissionless, and it's done by you-as-ope
    and issues a fresh **live** key.
 > Real third-party money also needs the audit + legal items in `LAUNCH_READINESS.md`. Your own
 > funds, small size, are your call. Until then everything stays in safe Test mode.
+>
+> **Want real testnet deposits** (a vault on Base Sepolia that takes real USDC and reflects
+> live NAV/AUM on the agent's page)? Follow **`TESTNET.md`** — it's the operator runbook to
+> deploy + wire the vault. Deposits/shares/NAV are real on-chain; trading stays mock on testnet.
 
 ---
 

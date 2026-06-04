@@ -53,14 +53,26 @@ async function load() {
   $("meta").style.marginLeft = "auto";
   $("meta").textContent = "updates every 10s";
 
+  // live on-chain vault state (real deposits/NAV) when a vault is wired
+  let chain = null;
+  if (a.vaultAddress) {
+    try {
+      const v = await fetch("/api/vault?env=" + (a.env || "test") + "&address=" + encodeURIComponent(a.vaultAddress)).then((r) => r.json());
+      if (v.onchain) chain = v;
+    } catch { /* fall back to stored figures */ }
+  }
+
   // header card
   const head = el("div", "card");
   const top = el("div"); top.style.display = "flex"; top.style.alignItems = "center"; top.style.gap = "10px";
   top.appendChild(el("h1", null, a.name || a.id));
   const pill = el("span", "pill " + a.status, a.status); top.appendChild(pill);
   if (a.certified) top.appendChild(el("span", "badge", "certified"));
+  if (chain) top.appendChild(el("span", "badge", "on-chain"));
   head.appendChild(top);
-  head.appendChild(el("div", "muted", a.id + " · env " + (a.env || "test") + (a.style ? " · " + a.style : "")));
+  let sub = a.id + " · env " + (a.env || "test") + (a.style ? " · " + a.style : "");
+  if (a.vaultAddress) sub += " · vault " + a.vaultAddress.slice(0, 8) + "…";
+  head.appendChild(el("div", "muted", sub));
   main.appendChild(head);
 
   // stats
@@ -68,8 +80,8 @@ async function load() {
   stats.appendChild(el("h2", null, "Live"));
   const grid = el("div", "grid");
   const stat = (k, v, cls) => { const s = el("div", "stat"); s.appendChild(el("div", "k", k)); s.appendChild(el("div", "v " + (cls || ""), v)); return s; };
-  grid.appendChild(stat("NAV", Number(a.nav || 1).toFixed(4)));
-  grid.appendChild(stat("AUM", usd(a.aum) + "M"));
+  grid.appendChild(stat("NAV", (chain ? chain.nav : Number(a.nav || 1)).toFixed(4)));
+  grid.appendChild(stat("AUM", chain ? usd(chain.aumUsd) : usd(a.aum) + "M"));
   grid.appendChild(stat("Depositors", a.depositors || 0));
   grid.appendChild(stat("30d return", (a.ret30 >= 0 ? "+" : "") + Number(a.ret30 || 0).toFixed(1) + "%", a.ret30 >= 0 ? "pos" : "neg"));
   grid.appendChild(stat("Deployed", usd(a.deployed)));
