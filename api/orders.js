@@ -1,0 +1,126 @@
+// Agent execution gateway.
+//   POST /api/orders   (agent key)  → submit an order INTENT; enforced + executed
+//   GET  /api/orders?agentId=…       → recent orders/fills for an agent
+//
+// Pipeline:  verify agent key → load policy + live state → checkOrder (policy)
+//            → submit to venue → record fill in `orders` + `ledger`
+//            → update agent dayRealizedPnl/deployed → auto-pause on daily-loss breach.
+//
+// The agent never moves funds. Margin movement to the venue is done by the gateway
+// via the Privy SERVER wallet (lib/serverWallet.js), scoped to allocate-only.
+import { getCollection, setCollection } from "../lib/store.js";
+import { requireAgent } from "../lib/agentAuth.js";
+import { checkOrder, shouldHalt, DEFAULT_POLICY } from "../lib/policy.js";
+import { submitOrder, VENUE_MODE } from "../lib/venue.js";
+import { allocateToVenue, SERVER_WALLET_MODE } from "../lib/serverWallet.js";
+
+export default async function handler(req, res) {
+  if (req.method === "GET") {
+    const agentId = (req.query && req.query.agentId) || null;
+    const orders = await getCollection("orders");
+    res.status(200).json({
+      orders: agentId ? orders.filter((o) => o.agentId === agentId) : orders,
+      venue: VENUE_MODE,
+      serverWallet: SERVER_WALLET_MODE,
+    });
+    return;
+  }
+
+  if (req.method !== "POST") {
+    res.status(405).json({ error: "Method not allowed" });
+    return;
+  }
+
+  // 1. authenticate the scoped agent key
+  const auth = requireAgent(req, res);
+  if (!auth) return;
+  const { agentId, env } = auth;
+
+  const body = typeof req.body === "string" ? JSON.parse(req.body || "{}") : (req.body || {});
+  const order = {
+    market: body.market,
+    side: body.side === "short" ? "short" : "long",
+    notional: Number(body.notional || 0),
+    leverage: Number(body.leverage || 1),
+  };
+
+  // 2. load agent + policy + live state
+  const agents = await getCollection("agents");
+  const ai = agents.findIndex((a) => a.id === agentId);
+  if (ai < 0) { res.status(404).json({ error: "agent not found" }); return; }
+  const agent = agents[ai];
+  const policy = agent.policy || DEFAULT_POLICY;
+  const state = {
+    status: agent.status === "live" ? "live" : agent.status, // live|paused|halted|review
+    aum: Number(agent.aum || 0) * 1e6, // AUM stored in $M → USD
+    deployed: Number(agent.deployed || 0),
+    dayRealizedPnl: Number(agent.dayRealizedPnl || 0),
+  };
+
+  // 3. enforce policy
+  const verdict = checkOrder(order, policy, state);
+  if (!verdict.ok) {
+    await record({ agentId, env, order, status: "rejected", reason: verdict.reason, code: verdict.code });
+    res.status(403).json({ error: "policy", ...verdict });
+    return;
+  }
+
+  // 4. move margin to the venue via the server wallet (allocate-only), then execute
+  const margin = order.notional / Math.max(order.leverage, 1);
+  let alloc;
+  try {
+    alloc = await allocateToVenue({
+      env,
+      vaultAddress: agent.vaultAddress || null,
+      venue: agent.venue || "mock-venue",
+      amountUsdc: margin,
+      walletId: agent.serverWalletId || null,
+    });
+  } catch (e) {
+    await record({ agentId, env, order, status: "error", reason: String(e.message || e), code: "ALLOC_FAILED" });
+    res.status(502).json({ error: "allocation failed", reason: String(e.message || e) });
+    return;
+  }
+
+  const exec = await submitOrder(order);
+
+  // 5. record fill + update agent state
+  const filled = await record({
+    agentId, env, order, status: "filled", fill: exec.fill, allocTx: alloc.txHash,
+  });
+
+  // realized PnL accrues on close; for an opening fill we book the fee as a small loss
+  const pnlDelta = -(exec.fill?.fee || 0);
+  const dayRealizedPnl = state.dayRealizedPnl + pnlDelta;
+  const deployed = state.deployed + margin;
+  const halted = shouldHalt(policy, dayRealizedPnl);
+  agents[ai] = {
+    ...agent,
+    deployed,
+    dayRealizedPnl,
+    status: halted ? "paused" : agent.status,
+    lastFillAt: Date.now(),
+  };
+  await setCollection("agents", agents);
+
+  res.status(201).json({
+    ok: true,
+    order: filled,
+    halted,
+    note: halted ? "daily-loss limit reached — agent auto-paused; pause the vault on-chain" : undefined,
+    venue: VENUE_MODE,
+    serverWallet: SERVER_WALLET_MODE,
+  });
+}
+
+// append to the `orders` collection
+async function record(entry) {
+  const orders = await getCollection("orders");
+  const row = {
+    id: "ORD-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 6),
+    ts: Date.now(),
+    ...entry,
+  };
+  await setCollection("orders", [row, ...orders].slice(0, 500));
+  return row;
+}
