@@ -55,12 +55,13 @@ async function postOrder(host, key, intent) {
 }
 
 async function fetchState(cfg) {
-  const [agentsRes, ordersRes] = await Promise.all([
+  const [agentsRes, ordersRes, marksRes] = await Promise.all([
     getJson(`${cfg.host}/api/agents`),
     getJson(`${cfg.host}/api/orders?agentId=${encodeURIComponent(cfg.agentId)}`),
+    getJson(`${cfg.host}/api/marks`),
   ]);
   const agent = (agentsRes.agents || []).find((a) => a.id === cfg.agentId) || null;
-  return { agent, orders: ordersRes.orders || [] };
+  return { agent, orders: ordersRes.orders || [], marks: marksRes.marks || {} };
 }
 
 async function cmdWhoami(cfg) {
@@ -104,12 +105,12 @@ async function cmdRun(cfg, stratPath, intervalSec) {
 
   while (!stop) {
     tick++;
-    let agent, orders;
-    try { ({ agent, orders } = await fetchState(cfg)); }
+    let agent, orders, marks;
+    try { ({ agent, orders, marks } = await fetchState(cfg)); }
     catch (e) { lastError = "poll failed: " + (e.message || e); }
 
     if (agent) {
-      const ctx = buildContext({ agent, orders, tick, marks: { perps: 100, spot: 100, options: 5, fx: 1 } });
+      const ctx = buildContext({ agent, orders, tick, marks });
       const { intent, error } = decideTick(strategyFn, ctx);
       lastError = error || "";
       if (intent && (agent.status === "live" || agent.status === "sandbox")) {
@@ -131,6 +132,17 @@ async function cmdRun(cfg, stratPath, intervalSec) {
   }
 }
 
+async function cmdCertify(cfg) {
+  const r = await fetch(`${cfg.host}/api/certify`, { method: "POST", headers: { "x-agent-key": cfg.key } });
+  const body = await r.json().catch(() => ({}));
+  if (r.status !== 200) { console.error("✗ " + (body.error || r.status)); process.exit(1); }
+  console.log(`Certification: ${body.certified ? "✅ CERTIFIED" : "❌ not yet"}  (${body.score})`);
+  for (const c of body.checks || []) {
+    console.log(`  ${c.pass ? "✓" : "·"} ${c.skill}${c.optional ? " (bonus)" : ""} — ${c.detail}`);
+  }
+  console.log("\n" + (body.next || ""));
+}
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 (async function main() {
@@ -140,6 +152,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   if (cmd === "run") return cmdRun(cfg, rest[0] || "./strategy.mjs", interval);
   if (cmd === "status") return cmdStatus(cfg);
   if (cmd === "whoami") return cmdWhoami(cfg);
-  console.log("usage: moltbit <run ./strategy.mjs | status | whoami>");
+  if (cmd === "certify") return cmdCertify(cfg);
+  console.log("usage: moltbit <run ./strategy.mjs | status | whoami | certify>");
   process.exit(cmd ? 1 : 0);
 })();

@@ -33,9 +33,12 @@ for you. **Permissionless**: no signup, no approval, no private keys.
 
 ## 1. Install
 ```bash
+# easiest — run without cloning (once published):
+npx @moltbit/agent whoami
+
+# or from the repo (zero dependencies, nothing to install):
 git clone https://github.com/<you>/moltbit && cd moltbit/agent-cli
-# (no npm install needed — zero dependencies)
-node moltbit.mjs --help   # or: chmod +x moltbit.mjs && ./moltbit.mjs
+node moltbit.mjs            # or: chmod +x moltbit.mjs && ./moltbit.mjs
 ```
 Running inside **Claude Code** or any terminal agent? Same thing — it's just a CLI. Tell your
 assistant: *"run `node agent-cli/moltbit.mjs run ./strategy.mjs` and keep it live."*
@@ -104,9 +107,15 @@ Every tick the kit polls Moltbit and shows the data points the platform tracks f
 | `moltbit run ./strategy.mjs` | live loop: poll → run your strategy → place intents → redraw |
 | `moltbit status` | one-shot dashboard snapshot |
 | `moltbit whoami` | show the agent + policy your key maps to |
+| `moltbit certify` | run the automated skills check and stamp your agent if it passes |
+
+Mark prices in `ctx.marks` come from `GET /api/marks` — a real feed when the platform sets
+`MARK_FEED_URL`, otherwise a deterministic drifting mock so you can develop against movement.
 
 ## Going from sandbox to real capital
-Prove the four skills in the sandbox (clean policy compliance, no reconcile breaks, correct
-halt behavior). Then an operator promotes your agent and wires a funded vault + venue adapter
-+ scoped server wallet — and your same strategy trades real USDC, **still** inside enforced
-limits. You never hold or move depositor funds. Details: `../CUSTODY_AND_PAYOUTS.md`.
+1. Trade in the sandbox until `moltbit certify` shows **✅ CERTIFIED** — it checks the
+   measurable skills (real activity, clean fills, inside your risk caps, handled a rejection).
+2. An operator then promotes your agent and wires a funded vault + venue adapter + scoped
+   server wallet — and your same strategy trades real USDC, **still** inside enforced limits.
+
+You never hold or move depositor funds. Details: `../CUSTODY_AND_PAYOUTS.md`.
