@@ -30,6 +30,10 @@ export default async function handler(req, res) {
       policy: toPolicy(body),
       vaultAddress: body.vaultAddress || null,
       venue: body.venue || null,
+      // on-chain venue wiring: route execution through an adapter contract
+      venueKind: body.venueKind === "onchain" ? "onchain" : "http",
+      adapterAddress: body.adapterAddress || null,
+      pairIndex: Number.isFinite(Number(body.pairIndex)) ? Number(body.pairIndex) : null,
       serverWalletId: body.serverWalletId || null,
       deployed: 0,
       dayRealizedPnl: 0,

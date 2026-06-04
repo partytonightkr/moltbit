@@ -12,7 +12,7 @@ import { getCollection, setCollection } from "../lib/store.js";
 import { requireAgent, keyActive } from "../lib/agentAuth.js";
 import { checkOrder, shouldHalt, DEFAULT_POLICY } from "../lib/policy.js";
 import { submitOrder, VENUE_MODE } from "../lib/venue.js";
-import { allocateToVenue, SERVER_WALLET_MODE } from "../lib/serverWallet.js";
+import { allocateToVenue, openVenuePosition, SERVER_WALLET_MODE } from "../lib/serverWallet.js";
 import { alert } from "../lib/alert.js";
 
 export default async function handler(req, res) {
@@ -73,14 +73,19 @@ export default async function handler(req, res) {
     return;
   }
 
-  // 4. move margin to the venue via the server wallet (allocate-only), then execute
+  // 4. push margin to the venue via the server wallet (allocate-only), then execute.
+  //    On-chain venues (agent.venueKind === "onchain") route to the adapter contract:
+  //    allocate(adapter, margin) → adapter.openTrade(...). Otherwise the HTTP venue.
   const margin = order.notional / Math.max(order.leverage, 1);
+  const onchain = agent.venueKind === "onchain" && !!agent.adapterAddress;
+  const venueTarget = onchain ? agent.adapterAddress : (agent.venue || "mock-venue");
+
   let alloc;
   try {
     alloc = await allocateToVenue({
       env,
       vaultAddress: agent.vaultAddress || null,
-      venue: agent.venue || "mock-venue",
+      venue: venueTarget,
       amountUsdc: margin,
       walletId: agent.serverWalletId || null,
     });
@@ -90,7 +95,40 @@ export default async function handler(req, res) {
     return;
   }
 
-  const exec = await submitOrder(order);
+  let exec;
+  try {
+    if (onchain) {
+      // open the position on the adapter (real calldata when the server wallet is live)
+      const open = await openVenuePosition({
+        env,
+        adapterAddress: agent.adapterAddress,
+        walletId: agent.serverWalletId || null,
+        pairIndex: Number(body.pairIndex ?? agent.pairIndex ?? 0),
+        buy: order.side === "long",
+        marginUsdc: margin,
+        leverage: order.leverage,
+        openPrice: Number(body.openPrice || 0), // 0 = market
+        slippagePct: Number(body.slippagePct ?? 1),
+        orderType: Number(body.orderType ?? 0),
+        executionFee: body.executionFee || 0,
+      });
+      // PnL/price realize on close; record the open tx as the fill reference.
+      exec = {
+        ok: true,
+        venue: "onchain",
+        fill: {
+          market: order.market, side: order.side, notional: order.notional, leverage: order.leverage,
+          qty: null, fillPrice: null, fee: 0, ts: Date.now(), txId: open.txHash,
+        },
+      };
+    } else {
+      exec = await submitOrder(order);
+    }
+  } catch (e) {
+    await record({ agentId, env, order, status: "error", reason: String(e.message || e), code: "EXEC_FAILED" });
+    res.status(502).json({ error: "execution failed", reason: String(e.message || e) });
+    return;
+  }
 
   // 5. record fill + update agent state
   const filled = await record({
