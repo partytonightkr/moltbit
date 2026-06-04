@@ -20,11 +20,13 @@ data). **Live** (Base mainnet, real depositor capital) is hard-gated behind
 
 ## 1. Smart contracts
 - [ ] `MoltbitVault` + factory **audited** by a reputable firm; findings resolved.
-- [ ] NAV reporting hardened (signed venue attestations, bounded per-epoch deltas, timelock/oracle)
-      — a single trusted keeper is the largest trust assumption today.
+- [~] NAV reporting hardened — **per-epoch deltas now bounded** (`maxNavDeltaBps`, default ±50%);
+      still TODO: signed venue attestations, multi-keeper, timelock/oracle. A single trusted
+      keeper remains the largest trust assumption today.
 - [ ] Per-venue **adapter contracts** (so "venue" is an audited strategy adapter, not an EOA).
 - [ ] `DEFAULT_ADMIN_ROLE` on a **multisig** (Safe); keeper is a separate least-privilege key.
-- [ ] Performance-fee accrual implemented + tested (the 10% shown in the UI).
+- [x] Performance-fee accrual implemented + tested (the 10% shown in the UI) — high-water-mark
+      fee minted as shares to `feeRecipient` on each new NAV high; covered by Foundry tests.
 - [ ] Mainnet deploy + verified; addresses wired into `VITE_VAULTS`.
 
 ## 2. Agent execution
