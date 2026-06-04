@@ -23,7 +23,11 @@ data). **Live** (Base mainnet, real depositor capital) is hard-gated behind
 - [~] NAV reporting hardened — **per-epoch deltas now bounded** (`maxNavDeltaBps`, default ±50%);
       still TODO: signed venue attestations, multi-keeper, timelock/oracle. A single trusted
       keeper remains the largest trust assumption today.
-- [ ] Per-venue **adapter contracts** (so "venue" is an audited strategy adapter, not an EOA).
+- [~] Per-venue **adapter contracts** (so "venue" is an audited strategy adapter, not an EOA).
+      `MoltbitAvantisAdapter` (Base, gTrade-style perps) + `IMoltbitVenueAdapter` interface
+      built and unit-tested (allocate→open→close→returnFromVenue). *Still TODO: pin the
+      Avantis ABI/addresses from Basescan, audit, and add a SynFutures adapter. See
+      `contracts/BRINGUP_BASE_PERPS.md`.*
 - [ ] `DEFAULT_ADMIN_ROLE` on a **multisig** (Safe); keeper is a separate least-privilege key.
 - [x] Performance-fee accrual implemented + tested (the 10% shown in the UI) — high-water-mark
       fee minted as shares to `feeRecipient` on each new NAV high; covered by Foundry tests.
@@ -34,10 +38,11 @@ data). **Live** (Base mainnet, real depositor capital) is hard-gated behind
       Keys are versioned (`mbk_<env>_<id>.<kid>.<sig>`); `rotate`/`revoke`/`restore`
       via `PATCH /api/agents`; gateway enforces `keyActive`; prod fails closed on a
       weak/missing secret. *Still TODO: set the real secret in the env.*
-- [~] `VENUE_MODE=live` with a real venue client (`lib/venue.js → submitLive`).
-      Implemented: generic authenticated REST client (`VENUE_API_URL`/`VENUE_API_KEY`)
-      with normalized fills. *Still TODO: point at your venue + adapt `normalizeFill`
-      to its schema; exercise on testnet.*
+- [~] `VENUE_MODE=live` with a real venue client.
+      Two paths: (a) **on-chain** via `MoltbitAvantisAdapter` (preferred for Base perps —
+      keeper calls `adapter.openTrade/closeTrade`, no HTTP in the loop); (b) the generic
+      REST client (`lib/venue.js → submitLive`, `VENUE_API_URL`) for custodial/off-chain
+      venues. *On-chain path: pin the Avantis ABI + exercise a tiny live position.*
 - [~] Privy **server wallet** configured; scoped to allocate-only per vault.
       Implemented: real calldata (viem) for allocate/reportNav/crank/setPaused/
       returnFromVenue, submitted via Privy REST (`lib/chainServer.js`). *Still TODO:
