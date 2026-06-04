@@ -30,16 +30,23 @@ data). **Live** (Base mainnet, real depositor capital) is hard-gated behind
 - [ ] Mainnet deploy + verified; addresses wired into `VITE_VAULTS`.
 
 ## 2. Agent execution
-- [ ] `AGENT_SECRET` is a strong secret; keys rotate-able; revocation path exists.
+- [x] `AGENT_SECRET` is a strong secret; keys rotate-able; revocation path exists.
+      Keys are versioned (`mbk_<env>_<id>.<kid>.<sig>`); `rotate`/`revoke`/`restore`
+      via `PATCH /api/agents`; gateway enforces `keyActive`; prod fails closed on a
+      weak/missing secret. *Still TODO: set the real secret in the env.*
 - [ ] `VENUE_MODE=live` with a real venue client (`lib/venue.js → submitLive`).
 - [ ] Privy **server wallet** configured (`PRIVY_APP_SECRET`); scoped to allocate-only per vault.
 - [ ] Policy limits load from on-chain/governance, not just the create payload.
-- [ ] Kill switch tested end-to-end (UI → gateway → vault pause → flatten).
+- [~] Kill switch tested end-to-end (UI → gateway → vault pause → flatten).
+      Backend wired: `POST /api/kill` halts the agent (gateway then denies orders),
+      pauses the vault (`setPaused`) and flattens (mock-safe), and pages ops. *Still
+      TODO: wire the UI button to the endpoint and exercise on-chain on testnet.*
 
 ## 3. Settlement
 - [ ] `CRON_SECRET` set; cron running on a schedule that matches the 24h windows.
-- [ ] On-chain `reportNav`/`crank` exercised on mainnet; reconciliation alerting wired
-      (page someone when `balanced === false`).
+- [x] On-chain `reportNav`/`crank` exercised on mainnet; **reconciliation alerting wired**
+      (`api/cron/settle.js` pages on `balanced === false`, failed reportNav/crank, and
+      cron exceptions via `lib/alert.js`). *Mainnet exercise still pending.*
 - [ ] Persistent store (Vercel KV) provisioned — not the in-memory fallback.
 
 ## 4. Wallets & funding
@@ -48,7 +55,11 @@ data). **Live** (Base mainnet, real depositor capital) is hard-gated behind
 - [ ] Withdrawal/offramp path tested with real (small) amounts.
 
 ## 5. Ops & safety
-- [ ] Monitoring + alerting (NAV drift, reconcile breaks, circuit trips, failed cron).
+- [~] Monitoring + alerting (NAV drift, reconcile breaks, circuit trips, failed cron).
+      `lib/alert.js` centralises alerts (log-only by default; Slack/Discord/generic
+      webhook via `ALERT_WEBHOOK_URL`); reconcile breaks, daily-loss halts, kill-switch
+      trips and failed crons are wired. *Still TODO: point it at a real channel + add
+      NAV-drift thresholds/dashboards.*
 - [ ] Incident runbook + global pause procedure.
 - [ ] Bug bounty (e.g. Immunefi) before scaling TVL.
 - [ ] Start with a **TVL cap** and your own funds; raise limits gradually.

@@ -9,10 +9,11 @@
 // The agent never moves funds. Margin movement to the venue is done by the gateway
 // via the Privy SERVER wallet (lib/serverWallet.js), scoped to allocate-only.
 import { getCollection, setCollection } from "../lib/store.js";
-import { requireAgent } from "../lib/agentAuth.js";
+import { requireAgent, keyActive } from "../lib/agentAuth.js";
 import { checkOrder, shouldHalt, DEFAULT_POLICY } from "../lib/policy.js";
 import { submitOrder, VENUE_MODE } from "../lib/venue.js";
 import { allocateToVenue, SERVER_WALLET_MODE } from "../lib/serverWallet.js";
+import { alert } from "../lib/alert.js";
 
 export default async function handler(req, res) {
   if (req.method === "GET") {
@@ -49,6 +50,13 @@ export default async function handler(req, res) {
   const ai = agents.findIndex((a) => a.id === agentId);
   if (ai < 0) { res.status(404).json({ error: "agent not found" }); return; }
   const agent = agents[ai];
+
+  // 2a. revocation / rotation gate — reject superseded or revoked keys
+  if (!keyActive(agent, auth.kid)) {
+    res.status(401).json({ error: "agent key revoked or superseded — rotate the key" });
+    return;
+  }
+
   const policy = agent.policy || DEFAULT_POLICY;
   const state = {
     status: agent.status === "live" ? "live" : agent.status, // live|paused|halted|review
@@ -102,6 +110,14 @@ export default async function handler(req, res) {
     lastFillAt: Date.now(),
   };
   await setCollection("agents", agents);
+
+  if (halted) {
+    await alert(
+      "agent.daily_loss_halt",
+      { agentId, env, dayRealizedPnl, dailyLoss: policy.dailyLoss, vaultAddress: agent.vaultAddress },
+      "error"
+    );
+  }
 
   res.status(201).json({
     ok: true,
