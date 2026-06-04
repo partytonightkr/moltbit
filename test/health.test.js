@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import health from "../api/health.js";
-import register from "../api/register-agent.js";
+import health from "../lib/routes/health.js";
+import register from "../lib/routes/register-agent.js";
 
 function mkRes() {
   return { _c: 0, _b: null, _h: {}, setHeader(k, v) { this._h[k] = v; }, status(c) { this._c = c; return this; }, json(b) { this._b = b; return this; } };

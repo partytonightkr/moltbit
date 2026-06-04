@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import graduate from "../api/graduate.js";
+import graduate from "../lib/routes/graduate.js";
 import { signToken } from "../lib/auth.js";
 import { verifyAgentKey } from "../lib/agentAuth.js";
 import { getCollection, setCollection } from "../lib/store.js";

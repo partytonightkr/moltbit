@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import register from "../api/register-agent.js";
+import register from "../lib/routes/register-agent.js";
 import { SANDBOX_LIMITS } from "../lib/policy.js";
 
 function mkRes() {
