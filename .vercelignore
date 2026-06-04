@@ -1,0 +1,7 @@
+# Keep the Vercel build to the web app + API. These dirs are dev/aux only and are
+# NOT served — excluding them also stops the nested agent-cli/package.json from
+# confusing Vercel's framework/build detection (which broke the moltbit deploy).
+agent-cli/
+contracts/
+test/
+design_handoff_real_funds/
