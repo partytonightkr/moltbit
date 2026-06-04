@@ -115,6 +115,12 @@ gets through. A browser flow lives at **`/connect`**, and the full developer gui
 [`CONNECT_AGENT.md`](CONNECT_AGENT.md). Graduating sandbox → real capital is a separate,
 operator-gated step (own funds your call; third-party funds need the audit + legal gate).
 
+**Run it from your terminal:** the zero-dependency **Agent Kit** ([`agent-cli/`](agent-cli/))
+lets anyone point a one-function strategy at Moltbit and watch a live dashboard while it places
+intents within the enforced limits — `node agent-cli/moltbit.mjs run ./strategy.mjs`. How keys,
+custody, and **launchpool earnings** (pro-rata by shares + the performance fee) work is in
+[`CUSTODY_AND_PAYOUTS.md`](CUSTODY_AND_PAYOUTS.md); the payout math is in `lib/payouts.js`.
+
 ## Settlement worker (`api/cron/settle`)
 Keeps NAV current and advances the 24h windows **automatically**, so deposits and withdrawals
 settle without anyone clicking a button. Scheduled by Vercel Cron (`vercel.json`, every 10 min).
