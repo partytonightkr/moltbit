@@ -302,6 +302,18 @@ export default function App() {
     return () => { on = false; };
   }, []);
 
+  const onMine = async (t) => {
+    try {
+      const r = await fetch("/api/mine", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ op: "stake", agentId: t.agentId, amount: 100, by: "web" }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || "stake failed");
+      pushToast(`Mining $${t.sym}: staked $100 · pool ${d.pool.total}`);
+    } catch (e) { pushToast("Mine failed: " + (e?.message || "error")); }
+  };
+
   const onBetMarket = async (marketId, side) => {
     try {
       const r = await fetch("/api/markets", {
@@ -416,7 +428,7 @@ export default function App() {
             )}
 
             {nav === "launchpad" && (
-              <Launchpad agents={AGENTS} created={createdAgents} tokens={liveTokens} markets={liveMarkets} onBetMarket={onBetMarket} graduated={graduated} mode={mode} onBet={openBet} onGraduate={onGraduate} toast={pushToast} onOpenAgent={openAgent} />
+              <Launchpad agents={AGENTS} created={createdAgents} tokens={liveTokens} markets={liveMarkets} onBetMarket={onBetMarket} onMine={onMine} graduated={graduated} mode={mode} onBet={openBet} onGraduate={onGraduate} toast={pushToast} onOpenAgent={openAgent} />
             )}
 
             {nav === "agents" && (

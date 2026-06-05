@@ -89,7 +89,7 @@ export function BetModal({ agent, initialTab, onClose, onConfirm }) {
 }
 
 // ---------- Launchpad screen ----------
-export function Launchpad({ agents, created = [], tokens = [], markets = [], onBetMarket, graduated, mode, onBet, onGraduate, toast, onOpenAgent }) {
+export function Launchpad({ agents, created = [], tokens = [], markets = [], onBetMarket, onMine, graduated, mode, onBet, onGraduate, toast, onOpenAgent }) {
   const tokened = agents.filter(a => a.token);
   const GRAD_THRESHOLD = 0.8;
   return (
@@ -146,6 +146,7 @@ export function Launchpad({ agents, created = [], tokens = [], markets = [], onB
                     <div className="lp-acts">
                       <button className="lp-b" onClick={() => toast && toast(`$${t.sym} buy — on-chain pool launching soon`)}>Buy</button>
                       <button className="lp-b bet" onClick={() => toast && toast(`Bet on ${t.agentName} — markets open at on-chain launch`)}>Bet</button>
+                      <button className="lp-b" onClick={() => onMine && onMine(t)}>Mine</button>
                     </div>
                   </td>
                 </tr>
