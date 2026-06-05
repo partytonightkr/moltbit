@@ -267,6 +267,7 @@ export default function App() {
   const [fetchedAgents, setFetchedAgents] = useState([]);
   const [storeMode, setStoreMode] = useState(null);
   const [persistDismissed, setPersistDismissed] = useState(false);
+  const [liveTokens, setLiveTokens] = useState([]);
 
   const pushToast = (msg) => {
     const id = Date.now() + Math.random();
@@ -288,6 +289,10 @@ export default function App() {
     fetch("/api/agents")
       .then(r => r.json())
       .then(d => { if (on) { if (Array.isArray(d.agents)) setFetchedAgents(d.agents); if (d.store) setStoreMode(d.store); } })
+      .catch(() => {});
+    fetch("/api/tokens")
+      .then(r => r.json())
+      .then(d => { if (on && Array.isArray(d.tokens)) setLiveTokens(d.tokens); })
       .catch(() => {});
     return () => { on = false; };
   }, []);
@@ -393,7 +398,7 @@ export default function App() {
             )}
 
             {nav === "launchpad" && (
-              <Launchpad agents={AGENTS} created={createdAgents} graduated={graduated} mode={mode} onBet={openBet} onGraduate={onGraduate} toast={pushToast} onOpenAgent={openAgent} />
+              <Launchpad agents={AGENTS} created={createdAgents} tokens={liveTokens} graduated={graduated} mode={mode} onBet={openBet} onGraduate={onGraduate} toast={pushToast} onOpenAgent={openAgent} />
             )}
 
             {nav === "agents" && (

@@ -14,6 +14,7 @@ import marks from "../lib/routes/marks.js";
 import pauseAll from "../lib/routes/pause-all.js";
 import registerAgent from "../lib/routes/register-agent.js";
 import registerVault from "../lib/routes/register-vault.js";
+import tokens from "../lib/routes/tokens.js";
 import vault from "../lib/routes/vault.js";
 
 const ROUTES = {
@@ -29,6 +30,7 @@ const ROUTES = {
   "pause-all": pauseAll,
   "register-agent": registerAgent,
   "register-vault": registerVault,
+  tokens,
   vault,
 };
 
