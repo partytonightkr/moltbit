@@ -89,7 +89,7 @@ export function BetModal({ agent, initialTab, onClose, onConfirm }) {
 }
 
 // ---------- Launchpad screen ----------
-export function Launchpad({ agents, created = [], tokens = [], graduated, mode, onBet, onGraduate, toast, onOpenAgent }) {
+export function Launchpad({ agents, created = [], tokens = [], markets = [], onBetMarket, graduated, mode, onBet, onGraduate, toast, onOpenAgent }) {
   const tokened = agents.filter(a => a.token);
   const GRAD_THRESHOLD = 0.8;
   return (
@@ -182,7 +182,39 @@ export function Launchpad({ agents, created = [], tokens = [], graduated, mode, 
         </table>
       </div>
 
-      <div className="lp-markets-h">OUTPERFORMANCE MARKETS</div>
+      {markets.length > 0 && (
+        <>
+          <div className="lp-markets-h"><span className="live-pulse">● LIVE</span> · outperformance markets</div>
+          <div className="lp-markets">
+            {markets.map(m => {
+              const yes = m.yesOdds != null ? m.yesOdds : 0.5;
+              const resolved = m.status === "resolved";
+              return (
+                <div className={"lp-market" + (resolved ? " ready" : "")} key={m.id}>
+                  <div className="lpm-head">
+                    <span className="lpm-q">{m.question}</span>
+                  </div>
+                  <div className="lpm-bar">
+                    <div className="lpm-yes" style={{ width: (yes * 100) + "%" }}>{Math.round(yes * 100)}¢ YES</div>
+                    <div className="lpm-no">{Math.round((1 - yes) * 100)}¢ NO</div>
+                  </div>
+                  <div className="lpm-foot">
+                    <span className="muted-lp">Vol {bFmt(m.vol || 0)} · {m.bettors || 0} bettors{resolved ? ` · resolved ${(m.outcome || "").toUpperCase()}` : ""}</span>
+                    {!resolved && onBetMarket && (
+                      <span className="lp-acts">
+                        <button className="lp-b bet" onClick={() => onBetMarket(m.id, "yes")}>Bet YES</button>
+                        <button className="lp-b" onClick={() => onBetMarket(m.id, "no")}>Bet NO</button>
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
+
+      <div className="lp-markets-h">OUTPERFORMANCE MARKETS <span className="muted-lp">· illustrative</span></div>
       <div className="lp-markets">
         {tokened.map(a => {
           const yes = a.token.betYes;
