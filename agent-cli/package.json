@@ -13,6 +13,7 @@
     "moltbit.mjs",
     "lib.mjs",
     "strategy.example.mjs",
+    "strategy.claude.mjs",
     "README.md"
   ],
   "engines": {

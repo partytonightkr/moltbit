@@ -16,27 +16,33 @@ test("fmtUsd formats positive and negative", () => {
   assert.equal(fmtUsd(0), "$0.00");
 });
 
-test("decideTick normalizes a valid intent and survives a throwing strategy", () => {
-  const ok = decideTick(() => ({ market: "perps", side: "long", notional: 1000, leverage: 3 }), {});
+test("decideTick normalizes a valid intent and survives a throwing strategy", async () => {
+  const ok = await decideTick(() => ({ market: "perps", side: "long", notional: 1000, leverage: 3 }), {});
   assert.equal(ok.intent.market, "perps");
   assert.equal(ok.intent.side, "long");
 
-  const none = decideTick(() => null, {});
+  const none = await decideTick(() => null, {});
   assert.equal(none.intent, null);
 
-  const bad = decideTick(() => ({ market: "perps", notional: 0 }), {});
+  const bad = await decideTick(() => ({ market: "perps", notional: 0 }), {});
   assert.equal(bad.intent, null);
   assert.ok(bad.error);
 
-  const boom = decideTick(() => { throw new Error("kaboom"); }, {});
+  const boom = await decideTick(() => { throw new Error("kaboom"); }, {});
   assert.equal(boom.intent, null);
   assert.match(boom.error, /kaboom/);
 });
 
-test("decideTick defaults side to long and leverage to 1", () => {
-  const r = decideTick(() => ({ market: "spot", notional: 500 }), {});
+test("decideTick defaults side to long and leverage to 1", async () => {
+  const r = await decideTick(() => ({ market: "spot", notional: 500 }), {});
   assert.equal(r.intent.side, "long");
   assert.equal(r.intent.leverage, 1);
+});
+
+test("decideTick awaits an async (e.g. Claude) strategy", async () => {
+  const r = await decideTick(async () => ({ market: "ETH-PERP", side: "short", notional: 800, leverage: 2 }), {});
+  assert.equal(r.intent.market, "ETH-PERP");
+  assert.equal(r.intent.side, "short");
 });
 
 test("buildContext shapes the strategy input", () => {

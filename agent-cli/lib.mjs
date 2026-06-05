@@ -22,9 +22,9 @@ function pad(s, w) {
 
 // Call the user's strategy with the live context. Never throws — a bad strategy
 // can't crash the runner; it just skips the tick and surfaces the error.
-export function decideTick(strategyFn, ctx) {
+export async function decideTick(strategyFn, ctx) {
   try {
-    const intent = strategyFn(ctx);
+    const intent = await strategyFn(ctx); // strategies may be sync or async (e.g. Claude-driven)
     if (!intent) return { intent: null };
     // light client-side shape check (the server still enforces all limits)
     const market = String(intent.market || "");
@@ -91,5 +91,7 @@ export function buildContext({ agent, orders, tick, marks }) {
     policy: a.policy || {},
     marks: marks || {}, // placeholder mark prices; wire a real oracle for live
     lastFills: (orders || []).slice(0, 10),
+    mandate: a.strategy || "", // the plain-language strategy (for LLM-driven agents)
+    style: a.style || "",
   };
 }

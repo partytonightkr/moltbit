@@ -124,7 +124,7 @@ async function cmdRun(cfg, stratPath, intervalSec, opts = {}) {
 
     if (agent) {
       const ctx = buildContext({ agent, orders, tick, marks });
-      const { intent, error } = decideTick(strategyFn, ctx);
+      const { intent, error } = await decideTick(strategyFn, ctx);
       lastError = error || "";
       if (intent && (agent.status === "live" || agent.status === "sandbox")) {
         try {
