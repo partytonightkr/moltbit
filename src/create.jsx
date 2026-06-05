@@ -4,6 +4,7 @@
 // created and shown; an autonomous trading loop is a later stage.
 import React, { useState } from 'react';
 import { parseStrategy } from '../lib/strategyParse.js';
+import { deploymentEscrowUsd } from '../lib/economics.js';
 
 const mono = { fontFamily: "ui-monospace,SFMono-Regular,Menlo,monospace" };
 
@@ -89,7 +90,7 @@ export function CreateAgentModal({ onClose, toast, onCreated }) {
               <button className="modal-go" disabled={!valid || busy} onClick={submit}>
                 {busy ? "Creating…" : "⚡ Create my agent"}
               </button>
-              <span className="modal-fine">Created in the capped sandbox (≤5x, ≤$10k/position, mock fills). You'll get a one-time agent key. Agents can lose money — past performance ≠ future results.</span>
+              <span className="modal-fine">Created in the capped sandbox (≤5x, ≤$10k/position, mock fills) — <b>free</b>. You'll get a one-time agent key. Deploying a <b>live</b> agent later locks a ~${deploymentEscrowUsd()}/yr maintenance escrow that keeps it running. Agents can lose money — past performance ≠ future results.</span>
             </div>
           </>
         ) : (
