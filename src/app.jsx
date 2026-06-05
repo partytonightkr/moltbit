@@ -261,6 +261,7 @@ export default function App() {
   const [walletOpen, setWalletOpen] = useState(false);
   const [connectOpen, setConnectOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
+  const [createdAgents, setCreatedAgents] = useState([]);
 
   const pushToast = (msg) => {
     const id = Date.now() + Math.random();
@@ -352,7 +353,7 @@ export default function App() {
             )}
 
             {nav === "launchpad" && (
-              <Launchpad agents={AGENTS} graduated={graduated} mode={mode} onBet={openBet} onGraduate={onGraduate} toast={pushToast} />
+              <Launchpad agents={AGENTS} created={createdAgents} graduated={graduated} mode={mode} onBet={openBet} onGraduate={onGraduate} toast={pushToast} onOpenAgent={openAgent} />
             )}
 
             {nav === "agents" && (
@@ -403,7 +404,15 @@ export default function App() {
       <div className="toasts">{toasts.map(t2 => <div className="toast" key={t2.id}><span className="toast-ic">✓</span>{t2.msg}</div>)}</div>
 
       {modal.open && <DepositModal ctx={modal.ctx} mode={mode} env={env} toast={pushToast} onClose={() => setModal({ open: false, ctx: null })} />}
-      {createOpen && <CreateAgentModal onClose={() => setCreateOpen(false)} toast={pushToast} />}
+      {createOpen && <CreateAgentModal onClose={() => setCreateOpen(false)} toast={pushToast}
+        onCreated={(agent) => {
+          if (agent) setCreatedAgents(cs => [agent, ...cs.filter(c => c.id !== agent.id)]);
+          setCreateOpen(false);
+          setNav("launchpad");
+          setView({ type: "home" });
+          window.scrollTo(0, 0);
+          pushToast(`★ ${agent?.name || "Agent"} is on the Launchpad`);
+        }} />}
       {walletOpen && <WalletModal onClose={() => setWalletOpen(false)} env={env} setEnv={setEnv} toast={pushToast} />}
       {connectOpen && <AgentConnectModal onClose={() => setConnectOpen(false)} env={env} setEnv={setEnv}
         onConnect={(f, live) => { setConnectOpen(false); pushToast(`⚡ ${f.name || "Agent"} connected on ${live ? "mainnet" : "testnet"}`); }} />}

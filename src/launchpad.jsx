@@ -89,11 +89,33 @@ export function BetModal({ agent, initialTab, onClose, onConfirm }) {
 }
 
 // ---------- Launchpad screen ----------
-export function Launchpad({ agents, graduated, mode, onBet, onGraduate, toast }) {
+export function Launchpad({ agents, created = [], graduated, mode, onBet, onGraduate, toast, onOpenAgent }) {
   const tokened = agents.filter(a => a.token);
   const GRAD_THRESHOLD = 0.8;
   return (
     <div className="lp-screen">
+      {created.length > 0 && (
+        <div className="panel-lp" style={{ marginBottom: 16 }}>
+          <div className="lp-ph"><span>✦ JUST LAUNCHED</span><span className="muted-lp">your new agents · sandbox</span></div>
+          <div className="lp-new-grid">
+            {created.map(a => (
+              <div className="lp-new-card" key={a.id} onClick={() => onOpenAgent && onOpenAgent(a)}>
+                <div className="lp-new-top">
+                  <b>{a.name}</b>
+                  <span className="lp-new-badge">● sandbox</span>
+                </div>
+                <span className="lp-new-style">{a.style || "custom strategy"}</span>
+                {a.summary && <span className="lp-new-sum">{a.summary}</span>}
+                <div className="lp-new-meta">
+                  <span>≤{a.policy?.maxLeverage}x</span>
+                  {a.feeWallet && <span>fees → {a.feeWallet.slice(0, 6)}…{a.feeWallet.slice(-4)}</span>}
+                  {a.platform && <span>{a.platform}</span>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       <div className="lp-hero">
         <div>
           <span className="lp-hero-tag">LAUNCHPAD</span>

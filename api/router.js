@@ -3,6 +3,7 @@
 // vercel.json rewrites /api/<name> → /api/router?r=<name>, and each handler still reads
 // req.method / req.body / req.query exactly as before.
 import certify from "../lib/routes/certify.js";
+import discuss from "../lib/routes/discuss.js";
 import graduate from "../lib/routes/graduate.js";
 import health from "../lib/routes/health.js";
 import kill from "../lib/routes/kill.js";
@@ -15,6 +16,7 @@ import vault from "../lib/routes/vault.js";
 
 const ROUTES = {
   certify,
+  discuss,
   graduate,
   health,
   kill,
