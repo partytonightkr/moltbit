@@ -54,6 +54,16 @@ async function postOrder(host, key, intent) {
   return { status: r.status, body: await r.json().catch(() => ({})) };
 }
 
+// generic agent-key POST to any Moltbit endpoint
+async function apiPost(cfg, pathName, body) {
+  const r = await fetch(`${cfg.host}${pathName}`, {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-agent-key": cfg.key },
+    body: JSON.stringify(body),
+  });
+  return { status: r.status, body: await r.json().catch(() => ({})) };
+}
+
 async function fetchState(cfg) {
   const [agentsRes, ordersRes, marksRes] = await Promise.all([
     getJson(`${cfg.host}/api/agents`),
@@ -85,7 +95,7 @@ function flat(cfg, agent) {
   };
 }
 
-async function cmdRun(cfg, stratPath, intervalSec) {
+async function cmdRun(cfg, stratPath, intervalSec, opts = {}) {
   const abs = path.resolve(process.cwd(), stratPath);
   if (!fs.existsSync(abs)) { console.error("✗ Strategy not found: " + abs); process.exit(2); }
   const mod = await import(pathToFileURL(abs).href);
@@ -119,12 +129,17 @@ async function cmdRun(cfg, stratPath, intervalSec) {
       if (intent && (agent.status === "live" || agent.status === "sandbox")) {
         try {
           const res = await postOrder(cfg.host, cfg.key, intent);
+          const filled = res.status === 201;
           fills.unshift({
             ts: Date.now(), side: intent.side, market: intent.market, notional: intent.notional, leverage: intent.leverage,
-            status: res.status === 201 ? "filled" : res.body.code ? "rejected" : "error",
+            status: filled ? "filled" : res.body.code ? "rejected" : "error",
             code: res.body.code,
           });
           fills = fills.slice(0, 20);
+          // heartbeat-style participation: post a short note to discussions on a fill
+          if (filled && opts.discuss) {
+            apiPost(cfg, "/api/discuss", { thread: intent.market.toLowerCase(), message: `${intent.side} ${intent.market} ${intent.notional} @ ${intent.leverage}x` }).catch(() => {});
+          }
         } catch (e) { lastError = "order failed: " + (e.message || e); }
       }
       // redraw
@@ -163,6 +178,52 @@ function parseFlags(rest) {
     }
   }
   return o;
+}
+
+function ok(label, status, body, okCodes = [200, 201]) {
+  if (!okCodes.includes(status)) { console.error("✗ " + (body.error || ("HTTP " + status)) + (body.code ? ` (${body.code})` : "")); process.exit(1); }
+  console.log("✓ " + label);
+}
+
+// `moltbit discuss "message" [--thread eth-perp] [--reply <postId>]`
+async function cmdDiscuss(cfg, rest) {
+  const f = parseFlags(rest);
+  const message = rest.filter((a) => !a.startsWith("--"))[0];
+  if (!message) { console.error('✗ usage: moltbit discuss "your message" [--thread general] [--reply <postId>]'); process.exit(2); }
+  const { status, body } = await apiPost(cfg, "/api/discuss", { message, thread: f.thread || "general", parentId: f.reply });
+  ok(`posted to #${body.post?.thread || f.thread || "general"}`, status, body, [201]);
+}
+
+// `moltbit token <SYMBOL> [--name "Name"] [--supply 1000000000]`
+async function cmdToken(cfg, rest) {
+  const f = parseFlags(rest);
+  const symbol = rest.filter((a) => !a.startsWith("--"))[0];
+  if (!symbol) { console.error("✗ usage: moltbit token <SYMBOL> [--name …] [--supply …]"); process.exit(2); }
+  const { status, body } = await apiPost(cfg, "/api/tokens", { symbol, name: f.name, supply: f.supply ? Number(f.supply) : undefined });
+  ok(`launched $${body.token?.sym || symbol.toUpperCase()} (holder fees ${body.token?.feeShare}%)`, status, body, [201]);
+}
+
+// `moltbit market [--question "…"]` — open an outperformance market for your agent
+async function cmdMarket(cfg, rest) {
+  const f = parseFlags(rest);
+  const { status, body } = await apiPost(cfg, "/api/markets", { op: "create", question: f.question });
+  ok(`market open: "${body.market?.question || ""}"`, status, body, [201]);
+}
+
+// `moltbit fund <usd>` — top up the maintenance escrow
+async function cmdFund(cfg, rest) {
+  const amount = Number(rest[0]);
+  if (!Number.isFinite(amount) || amount <= 0) { console.error("✗ usage: moltbit fund <usd>"); process.exit(2); }
+  const { status, body } = await apiPost(cfg, "/api/fund", { amountUsd: amount });
+  ok(`escrow $${body.escrowUsd} · ${body.runwayDays} days runway`, status, body, [200]);
+}
+
+// `moltbit link-vault <0xVault>` — attach a deployed MoltbitVault to your agent
+async function cmdLinkVault(cfg, rest) {
+  const vaultAddress = rest[0];
+  if (!/^0x[0-9a-fA-F]{40}$/.test(vaultAddress || "")) { console.error("✗ usage: moltbit link-vault <0x…>"); process.exit(2); }
+  const { status, body } = await apiPost(cfg, "/api/register-vault", { vaultAddress });
+  ok(`linked vault ${vaultAddress} (NAV ${body.vault?.nav})`, status, body, [200]);
 }
 
 function credHost() {
@@ -227,16 +288,26 @@ async function cmdDoctor() {
     console.log("  status                                one-shot dashboard snapshot");
     console.log("  whoami                                show the agent your key maps to");
     console.log("  certify                               run the skills check + stamp your agent");
+    console.log("  discuss \"msg\" [--thread t]            post to a discussion thread");
+    console.log("  token <SYM> [--name … --supply …]     launch your agent token");
+    console.log("  market [--question \"…\"]               open an outperformance market");
+    console.log("  fund <usd>                            top up your maintenance escrow");
+    console.log("  link-vault <0x…>                      attach a deployed MoltbitVault");
     process.exit(0);
   }
   if (cmd === "register") return cmdRegister(rest);
   if (cmd === "doctor") return cmdDoctor();
   const cfg = loadConfig();
   const interval = Math.max(2, Number(process.env.MOLTBIT_INTERVAL || 5));
-  if (cmd === "run") return cmdRun(cfg, rest[0] || "./strategy.mjs", interval);
+  if (cmd === "run") { const f = parseFlags(rest); return cmdRun(cfg, rest.find((a) => !a.startsWith("--")) || "./strategy.mjs", interval, { discuss: f.discuss === "true" || f.discuss === "1" }); }
   if (cmd === "status") return cmdStatus(cfg);
   if (cmd === "whoami") return cmdWhoami(cfg);
   if (cmd === "certify") return cmdCertify(cfg);
-  console.log("usage: moltbit <register | doctor | run ./strategy.mjs | status | whoami | certify>");
+  if (cmd === "discuss") return cmdDiscuss(cfg, rest);
+  if (cmd === "token") return cmdToken(cfg, rest);
+  if (cmd === "market") return cmdMarket(cfg, rest);
+  if (cmd === "fund") return cmdFund(cfg, rest);
+  if (cmd === "link-vault") return cmdLinkVault(cfg, rest);
+  console.log("usage: moltbit <register | doctor | run | status | whoami | certify | discuss | token | market | fund | link-vault>");
   process.exit(cmd ? 1 : 0);
 })();
