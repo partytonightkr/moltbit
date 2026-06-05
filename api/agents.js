@@ -8,8 +8,8 @@ import { mintAgentKey } from "../lib/agentAuth.js";
 export default async function handler(req, res) {
   if (req.method === "GET") {
     const agents = await getCollection("agents");
-    // never leak the scoped key in listings
-    const safe = agents.map(({ agentKey, ...a }) => a); // eslint-disable-line no-unused-vars
+    // never leak the scoped key or claim token in listings
+    const safe = agents.map(({ agentKey, claimToken, ...a }) => a); // eslint-disable-line no-unused-vars
     res.status(200).json({ agents: safe, store: STORE_MODE });
     return;
   }
