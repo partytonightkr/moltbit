@@ -11,6 +11,7 @@
     { "source": "/api/certify", "destination": "/api/router?r=certify" },
     { "source": "/api/claim", "destination": "/api/router?r=claim" },
     { "source": "/api/discuss", "destination": "/api/router?r=discuss" },
+    { "source": "/api/fund", "destination": "/api/router?r=fund" },
     { "source": "/api/graduate", "destination": "/api/router?r=graduate" },
     { "source": "/api/kill", "destination": "/api/router?r=kill" },
     { "source": "/api/pause-all", "destination": "/api/router?r=pause-all" },
