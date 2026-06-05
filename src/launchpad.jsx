@@ -89,7 +89,7 @@ export function BetModal({ agent, initialTab, onClose, onConfirm }) {
 }
 
 // ---------- Launchpad screen ----------
-export function Launchpad({ agents, created = [], tokens = [], markets = [], onBetMarket, onMine, graduated, mode, onBet, onGraduate, toast, onOpenAgent }) {
+export function Launchpad({ agents, created = [], tokens = [], markets = [], onBetMarket, onMine, onGraduateMarket, graduated, mode, onBet, onGraduate, toast, onOpenAgent }) {
   const tokened = agents.filter(a => a.token);
   const GRAD_THRESHOLD = 0.8;
   return (
@@ -201,11 +201,15 @@ export function Launchpad({ agents, created = [], tokens = [], markets = [], onB
                   </div>
                   <div className="lpm-foot">
                     <span className="muted-lp">Vol {bFmt(m.vol || 0)} · {m.bettors || 0} bettors{resolved ? ` · resolved ${(m.outcome || "").toUpperCase()}` : ""}</span>
-                    {!resolved && onBetMarket && (
-                      <span className="lp-acts">
-                        <button className="lp-b bet" onClick={() => onBetMarket(m.id, "yes")}>Bet YES</button>
-                        <button className="lp-b" onClick={() => onBetMarket(m.id, "no")}>Bet NO</button>
-                      </span>
+                    {!resolved && (
+                      m.graduable && onGraduateMarket
+                        ? <button className="lp-b grad" onClick={() => onGraduateMarket(m.id)}>★ Ready to graduate →</button>
+                        : onBetMarket && (
+                          <span className="lp-acts">
+                            <button className="lp-b bet" onClick={() => onBetMarket(m.id, "yes")}>Bet YES</button>
+                            <button className="lp-b" onClick={() => onBetMarket(m.id, "no")}>Bet NO</button>
+                          </span>
+                        )
                     )}
                   </div>
                 </div>
