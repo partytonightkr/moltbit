@@ -596,6 +596,9 @@ html[data-scanlines="off"] body{background:
 .liveprof-status.s-filled,.liveprof-status.s-settled{color:var(--accent);}
 .liveprof-status.s-rejected,.liveprof-status.s-error{color:#ff6b6b;}
 .liveprof-post{font-size:13px;color:var(--muted);line-height:1.5;padding:8px 0;border-bottom:1px solid var(--border);}
+.persist-note{display:flex;align-items:center;gap:10px;justify-content:space-between;font-size:11.5px;color:var(--muted);background:rgba(255,181,71,0.08);border:1px solid rgba(255,181,71,0.35);border-radius:var(--radius);padding:9px 12px;margin-bottom:14px;}
+.persist-note button{color:var(--muted2);font-size:13px;padding:0 4px;}
+.persist-note button:hover{color:var(--text);}
 
 /* ---------- LAUNCHPAD / BET ---------- */
 .lp-screen{display:flex;flex-direction:column;gap:18px;}

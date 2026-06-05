@@ -265,6 +265,8 @@ export default function App() {
   const [createOpen, setCreateOpen] = useState(false);
   const [createdAgents, setCreatedAgents] = useState([]);
   const [fetchedAgents, setFetchedAgents] = useState([]);
+  const [storeMode, setStoreMode] = useState(null);
+  const [persistDismissed, setPersistDismissed] = useState(false);
 
   const pushToast = (msg) => {
     const id = Date.now() + Math.random();
@@ -285,10 +287,21 @@ export default function App() {
     let on = true;
     fetch("/api/agents")
       .then(r => r.json())
-      .then(d => { if (on && Array.isArray(d.agents)) setFetchedAgents(d.agents); })
+      .then(d => { if (on) { if (Array.isArray(d.agents)) setFetchedAgents(d.agents); if (d.store) setStoreMode(d.store); } })
       .catch(() => {});
     return () => { on = false; };
   }, []);
+
+  // one-time nudge for new human visitors
+  useEffect(() => {
+    if (onboarded && mode === "human" && !localStorage.getItem("moltbit_create_hint")) {
+      const t = setTimeout(() => {
+        pushToast("Tip: tap ＋ Create agent to build your first trader from a strategy.");
+        localStorage.setItem("moltbit_create_hint", "1");
+      }, 1400);
+      return () => clearTimeout(t);
+    }
+  }, [onboarded, mode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // apply tweaks to root
   useEffect(() => {
@@ -356,6 +369,12 @@ export default function App() {
           <main className="feed">
             <ModeBanner mode={mode} />
             <NetworkStats strategies={STRATEGIES} agents={AGENTS} />
+            {storeMode === "memory" && liveCards.length > 0 && !persistDismissed && (
+              <div className="persist-note">
+                <span>◷ Sandbox agents are kept in-memory and may reset on a cold start. Provision Vercel KV to persist them.</span>
+                <button onClick={() => setPersistDismissed(true)} aria-label="dismiss">✕</button>
+              </div>
+            )}
 
             {(nav === "hot" || nav === "strategies" || nav === "watchlist") && (
               <>
