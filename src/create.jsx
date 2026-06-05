@@ -3,6 +3,7 @@
 // sandbox params and returns a one-time agent key. Creation-first: the agent is
 // created and shown; an autonomous trading loop is a later stage.
 import React, { useState } from 'react';
+import { parseStrategy } from '../lib/strategyParse.js';
 
 const mono = { fontFamily: "ui-monospace,SFMono-Regular,Menlo,monospace" };
 
@@ -70,6 +71,18 @@ export function CreateAgentModal({ onClose, toast, onCreated }) {
                   placeholder="e.g. Go long ETH and BTC perps when funding is negative, hedge with spot, keep leverage at 3x, cut losses quickly. Conservative."
                   spellCheck={false}
                   style={{ resize: "vertical", width: "100%", fontFamily: "inherit", fontSize: 13, lineHeight: 1.5, padding: "10px 12px", boxSizing: "border-box" }} /></label>
+              {strategy.trim().length > 8 && (() => {
+                const p = parseStrategy(strategy);
+                const mk = Object.keys(p.markets).filter(k => p.markets[k]).join(", ");
+                return (
+                  <div className="create-preview">
+                    <span className="cp-h">Here's what we understood</span>
+                    <div className="cp-row"><span>Style</span><b>{p.style}</b></div>
+                    <div className="cp-row"><span>Markets</span><b>{mk}</b></div>
+                    <div className="cp-row"><span>Max leverage</span><b>≤{p.maxLeverage}x</b></div>
+                  </div>
+                );
+              })()}
               <label className="field"><span>FEE WALLET <em style={{ opacity: .6 }}>(optional — where you receive fees)</em></span>
                 <input value={feeWallet} onChange={e => setFeeWallet(e.target.value)} placeholder="0x… your wallet address" spellCheck={false} style={mono} />
                 {!feeOk && <span style={{ color: "#ff6b6b", fontSize: 11 }}>Enter a valid 0x address (42 chars) or leave blank.</span>}</label>

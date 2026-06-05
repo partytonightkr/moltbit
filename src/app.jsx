@@ -8,6 +8,8 @@ import { Onboarding } from './onboarding.jsx';
 import { BetModal, Launchpad } from './launchpad.jsx';
 import { WalletModal, AgentConnectModal } from './flows.jsx';
 import { CreateAgentModal } from './create.jsx';
+import { LiveAgentProfile } from './liveagent.jsx';
+import { liveToCard, mergeLive } from './live.js';
 import { useAuth } from './auth.jsx';
 import { sendUsdc, depositAddressFor, vaultAddressFor, depositToVault, isAddr, explorerTx } from './chain.js';
 import { AGENTS, STRATEGIES, ACTIVITY, agentBy, GRADUATED } from './data.js';
@@ -262,6 +264,7 @@ export default function App() {
   const [connectOpen, setConnectOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [createdAgents, setCreatedAgents] = useState([]);
+  const [fetchedAgents, setFetchedAgents] = useState([]);
 
   const pushToast = (msg) => {
     const id = Date.now() + Math.random();
@@ -276,6 +279,16 @@ export default function App() {
 
   useEffect(() => { localStorage.setItem("moltbit_mode", mode); }, [mode]);
   useEffect(() => { localStorage.setItem("moltbit_env", env); }, [env]);
+
+  // pull live (created) agents so they surface in the Agents grid + Leaderboard
+  useEffect(() => {
+    let on = true;
+    fetch("/api/agents")
+      .then(r => r.json())
+      .then(d => { if (on && Array.isArray(d.agents)) setFetchedAgents(d.agents); })
+      .catch(() => {});
+    return () => { on = false; };
+  }, []);
 
   // apply tweaks to root
   useEffect(() => {
@@ -321,12 +334,20 @@ export default function App() {
   else if (tab === "gainers") list.sort((a, b) => b.ret7 - a.ret7);
   else if (tab === "new") list.sort((a, b) => parseFloat(a.age) - parseFloat(b.age));
 
+  // live agents (created this session + fetched) merged into the static roster
+  const liveAgents = mergeLive(createdAgents, fetchedAgents);
+  const liveCards = liveAgents.map(liveToCard);
+  const agentsForGrid = [...liveCards, ...AGENTS];
+  const leaderboardRows = [...liveCards, ...AGENTS]
+    .slice().sort((x, y) => (y.ret30 || 0) - (x.ret30 || 0))
+    .map((a, i) => ({ ...a, rank: i + 1 }));
+
   const best = AGENTS[0];
 
   return (
     <div className="app">
       <TopBar mode={mode} setMode={setMode} query={query} setQuery={setQuery} onHome={goHome}
-        onWallet={() => setWalletOpen(true)} onConnect={() => setConnectOpen(true)} />
+        onWallet={() => setWalletOpen(true)} onConnect={() => setConnectOpen(true)} onCreate={() => setCreateOpen(true)} />
       <Ticker strategies={STRATEGIES} />
 
       {view.type === "home" && (
@@ -358,15 +379,15 @@ export default function App() {
 
             {nav === "agents" && (
               <>
-                <SectionHead title="Agents" sub={AGENTS.length + " autonomous traders on the network"} />
-                <AgentsGrid agents={AGENTS} mode={mode} onOpenAgent={openAgent} onDeposit={openDeposit} onBet={openBet} />
+                <SectionHead title="Agents" sub={agentsForGrid.length + " autonomous traders" + (liveCards.length ? ` · ${liveCards.length} just launched` : "")} />
+                <AgentsGrid agents={agentsForGrid} mode={mode} onOpenAgent={openAgent} onDeposit={openDeposit} onBet={openBet} />
               </>
             )}
 
             {nav === "leaderboard" && (
               <>
                 <SectionHead title="Leaderboard" sub="Ranked by 30-day return" />
-                <Leaderboard agents={AGENTS} onOpenAgent={openAgent} />
+                <Leaderboard agents={leaderboardRows} onOpenAgent={openAgent} />
               </>
             )}
 
@@ -396,7 +417,9 @@ export default function App() {
 
       {view.type === "agent" && (
         <div className="detail-wrap">
-          <AgentProfile a={view.data} mode={mode} onDeposit={openDeposit} onBack={goHome} onOpenStrategy={openStrategy} onBet={openBet} />
+          {view.data._live
+            ? <LiveAgentProfile a={view.data} onBack={goHome} />
+            : <AgentProfile a={view.data} mode={mode} onDeposit={openDeposit} onBack={goHome} onOpenStrategy={openStrategy} onBet={openBet} />}
         </div>
       )}
 
