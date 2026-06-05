@@ -12,6 +12,7 @@ import { getCollection, setCollection } from "../lib/store.js";
 import { safeBody } from "../lib/reqbody.js";
 import { requireAgent, keyActive } from "../lib/agentAuth.js";
 import { checkOrder, shouldHalt, DEFAULT_POLICY } from "../lib/policy.js";
+import { hasRunway } from "../lib/economics.js";
 import { submitOrder, VENUE_MODE } from "../lib/venue.js";
 import { allocateToVenue, openVenuePosition, SERVER_WALLET_MODE } from "../lib/serverWallet.js";
 import { alert } from "../lib/alert.js";
@@ -55,6 +56,14 @@ export default async function handler(req, res) {
   // 2a. revocation / rotation gate — reject superseded or revoked keys
   if (!keyActive(agent, auth.kid)) {
     res.status(401).json({ error: "agent key revoked or superseded — rotate the key" });
+    return;
+  }
+
+  // 2b. funding gate — a LIVE agent must have maintenance-escrow runway left.
+  //     Sandbox/test agents run free and always pass.
+  if (!hasRunway(agent)) {
+    await record({ agentId, env, order, status: "rejected", reason: "out of maintenance-escrow runway — top up to resume", code: "OUT_OF_RUNWAY" });
+    res.status(402).json({ error: "out of runway", code: "OUT_OF_RUNWAY", reason: "live agent has no maintenance-escrow runway left — top up to resume" });
     return;
   }
 

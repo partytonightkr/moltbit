@@ -5,6 +5,7 @@
 import certify from "../lib/routes/certify.js";
 import claim from "../lib/routes/claim.js";
 import discuss from "../lib/routes/discuss.js";
+import fund from "../lib/routes/fund.js";
 import graduate from "../lib/routes/graduate.js";
 import health from "../lib/routes/health.js";
 import kill from "../lib/routes/kill.js";
@@ -19,6 +20,7 @@ const ROUTES = {
   certify,
   claim,
   discuss,
+  fund,
   graduate,
   health,
   kill,

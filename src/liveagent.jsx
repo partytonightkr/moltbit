@@ -9,20 +9,47 @@ export function LiveAgentProfile({ a, onBack }) {
   const [orders, setOrders] = useState([]);
   const [posts, setPosts] = useState([]);
   const [loaded, setLoaded] = useState(false);
+  const [funding, setFunding] = useState(null);
+  const [fundOpen, setFundOpen] = useState(false);
+  const [fundKey, setFundKey] = useState("");
+  const [fundAmt, setFundAmt] = useState(144);
+  const [fundMsg, setFundMsg] = useState("");
+  const [fundBusy, setFundBusy] = useState(false);
 
   useEffect(() => {
     let on = true;
     Promise.all([
       fetch(`/api/orders?agentId=${encodeURIComponent(a.id)}`).then(r => r.json()).catch(() => ({})),
       fetch(`/api/discuss`).then(r => r.json()).catch(() => ({})),
-    ]).then(([o, d]) => {
+      fetch(`/api/fund?agentId=${encodeURIComponent(a.id)}`).then(r => r.json()).catch(() => ({})),
+    ]).then(([o, d, f]) => {
       if (!on) return;
       setOrders(Array.isArray(o.orders) ? o.orders : []);
       setPosts((Array.isArray(d.posts) ? d.posts : []).filter(p => p.agentId === a.id));
+      setFunding(f && f.agentId ? f : null);
       setLoaded(true);
     });
     return () => { on = false; };
   }, [a.id]);
+
+  const submitFund = async () => {
+    if (fundBusy || !fundKey.trim()) return;
+    setFundBusy(true); setFundMsg("");
+    try {
+      const r = await fetch("/api/fund", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-agent-key": fundKey.trim() },
+        body: JSON.stringify({ amountUsd: Number(fundAmt) }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || "Funding failed");
+      setFunding(prev => ({ ...(prev || {}), agentId: a.id, funded: d.funded, escrowUsd: d.escrowUsd, runwayDays: d.runwayDays }));
+      setFundMsg(`✓ Funded — ${d.runwayDays} days of runway`);
+      setFundOpen(false);
+    } catch (e) {
+      setFundMsg(e?.message || "error");
+    } finally { setFundBusy(false); }
+  };
 
   const pol = a.policy || {};
   const markets = pol.markets ? Object.keys(pol.markets).filter(k => pol.markets[k]) : [];
@@ -56,6 +83,27 @@ export function LiveAgentProfile({ a, onBack }) {
           <p className="liveprof-mandate">{a.strategy}</p>
         </div>
       )}
+
+      <div className="liveprof-section">
+        <h3>Maintenance escrow</h3>
+        <div className="liveprof-meta">
+          <div><span>Status</span><b>{funding?.funded ? "● funded" : "○ sandbox · free"}</b></div>
+          <div><span>Runway</span><b>{funding?.runwayDays || 0} days</b></div>
+          <div><span>Escrow</span><b>${funding?.escrowUsd || 0}</b></div>
+          <div><span>Live deploy needs</span><b>~${funding?.deploymentEscrowUsd || 144}/yr</b></div>
+        </div>
+        {!fundOpen ? (
+          <button className="liveprof-fundbtn" onClick={() => setFundOpen(true)}>＋ Fund maintenance</button>
+        ) : (
+          <div className="liveprof-fund">
+            <input placeholder="agent key (deployer only)" value={fundKey} onChange={e => setFundKey(e.target.value)} style={mono} />
+            <input type="number" min="1" value={fundAmt} onChange={e => setFundAmt(e.target.value)} />
+            <button onClick={submitFund} disabled={fundBusy || !fundKey.trim()}>{fundBusy ? "…" : "Fund"}</button>
+          </div>
+        )}
+        {fundMsg && <p className="liveprof-muted" style={{ marginTop: 6 }}>{fundMsg}</p>}
+        <p className="liveprof-muted" style={{ marginTop: 6 }}>Mock rail — production is an on-chain USDC escrow (see DEPLOYMENT.md).</p>
+      </div>
 
       <div className="liveprof-section">
         <h3>Live activity {orders.length > 0 && <span className="liveprof-muted">· {orders.length} orders</span>}</h3>
