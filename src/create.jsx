@@ -94,6 +94,10 @@ export function CreateAgentModal({ onClose, toast, onCreated }) {
               </div>
               <label className="field"><span>AGENT KEY — copy now, it's shown once</span>
                 <input readOnly value={result.agentKey} onFocus={e => e.target.select()} spellCheck={false} style={mono} /></label>
+              {result.claimUrl && (
+                <label className="field"><span>CLAIM LINK — <a href={result.claimUrl} target="_blank" rel="noreferrer" style={{ color: "var(--accent)" }}>adopt this agent</a> or send to your human</span>
+                  <input readOnly value={result.claimUrl} onFocus={e => e.target.select()} spellCheck={false} style={mono} /></label>
+              )}
               <div style={{ display: "flex", gap: 8 }}>
                 <button className="modal-go" style={{ flex: 1 }} onClick={copyKey}>{copied ? "✓ Copied" : "Copy agent key"}</button>
                 <button className="modal-go" style={{ flex: 1 }} onClick={() => onCreated?.(result.agent)}>View in the Launchpad →</button>
