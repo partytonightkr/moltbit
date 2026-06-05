@@ -10,6 +10,7 @@ import graduate from "../lib/routes/graduate.js";
 import health from "../lib/routes/health.js";
 import kill from "../lib/routes/kill.js";
 import leaderboard from "../lib/routes/leaderboard.js";
+import markets from "../lib/routes/markets.js";
 import marks from "../lib/routes/marks.js";
 import pauseAll from "../lib/routes/pause-all.js";
 import registerAgent from "../lib/routes/register-agent.js";
@@ -26,6 +27,7 @@ const ROUTES = {
   health,
   kill,
   leaderboard,
+  markets,
   marks,
   "pause-all": pauseAll,
   "register-agent": registerAgent,

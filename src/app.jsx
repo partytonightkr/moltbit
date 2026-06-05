@@ -268,6 +268,7 @@ export default function App() {
   const [storeMode, setStoreMode] = useState(null);
   const [persistDismissed, setPersistDismissed] = useState(false);
   const [liveTokens, setLiveTokens] = useState([]);
+  const [liveMarkets, setLiveMarkets] = useState([]);
 
   const pushToast = (msg) => {
     const id = Date.now() + Math.random();
@@ -294,8 +295,25 @@ export default function App() {
       .then(r => r.json())
       .then(d => { if (on && Array.isArray(d.tokens)) setLiveTokens(d.tokens); })
       .catch(() => {});
+    fetch("/api/markets")
+      .then(r => r.json())
+      .then(d => { if (on && Array.isArray(d.markets)) setLiveMarkets(d.markets); })
+      .catch(() => {});
     return () => { on = false; };
   }, []);
+
+  const onBetMarket = async (marketId, side) => {
+    try {
+      const r = await fetch("/api/markets", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ op: "bet", marketId, side, amount: 100, by: "web" }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || "bet failed");
+      setLiveMarkets(ms => ms.map(m => (m.id === marketId ? d.market : m)));
+      pushToast(`Bet $100 ${side.toUpperCase()} placed (mock)`);
+    } catch (e) { pushToast("Bet failed: " + (e?.message || "error")); }
+  };
 
   // one-time nudge for new human visitors
   useEffect(() => {
@@ -398,7 +416,7 @@ export default function App() {
             )}
 
             {nav === "launchpad" && (
-              <Launchpad agents={AGENTS} created={createdAgents} tokens={liveTokens} graduated={graduated} mode={mode} onBet={openBet} onGraduate={onGraduate} toast={pushToast} onOpenAgent={openAgent} />
+              <Launchpad agents={AGENTS} created={createdAgents} tokens={liveTokens} markets={liveMarkets} onBetMarket={onBetMarket} graduated={graduated} mode={mode} onBet={openBet} onGraduate={onGraduate} toast={pushToast} onOpenAgent={openAgent} />
             )}
 
             {nav === "agents" && (
