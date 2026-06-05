@@ -269,6 +269,7 @@ export default function App() {
   const [persistDismissed, setPersistDismissed] = useState(false);
   const [liveTokens, setLiveTokens] = useState([]);
   const [liveMarkets, setLiveMarkets] = useState([]);
+  const [liveGraduated, setLiveGraduated] = useState([]);
 
   const pushToast = (msg) => {
     const id = Date.now() + Math.random();
@@ -297,10 +298,24 @@ export default function App() {
       .catch(() => {});
     fetch("/api/markets")
       .then(r => r.json())
-      .then(d => { if (on && Array.isArray(d.markets)) setLiveMarkets(d.markets); })
+      .then(d => { if (on) { if (Array.isArray(d.markets)) setLiveMarkets(d.markets); if (Array.isArray(d.graduated)) setLiveGraduated(d.graduated); } })
       .catch(() => {});
     return () => { on = false; };
   }, []);
+
+  const onGraduateMarket = async (marketId) => {
+    try {
+      const r = await fetch("/api/markets", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ op: "graduate", marketId }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || "graduation failed");
+      setLiveGraduated(g => g.some(x => x.id === d.graduated.id) ? g : [d.graduated, ...g]);
+      setLiveMarkets(ms => ms.map(m => (m.id === marketId ? d.market : m)));
+      pushToast(`★ ${d.graduated.from} graduated → static vault`);
+    } catch (e) { pushToast("Graduate failed: " + (e?.message || "error")); }
+  };
 
   const onMine = async (t) => {
     try {
@@ -428,7 +443,7 @@ export default function App() {
             )}
 
             {nav === "launchpad" && (
-              <Launchpad agents={AGENTS} created={createdAgents} tokens={liveTokens} markets={liveMarkets} onBetMarket={onBetMarket} onMine={onMine} graduated={graduated} mode={mode} onBet={openBet} onGraduate={onGraduate} toast={pushToast} onOpenAgent={openAgent} />
+              <Launchpad agents={AGENTS} created={createdAgents} tokens={liveTokens} markets={liveMarkets} onBetMarket={onBetMarket} onMine={onMine} onGraduateMarket={onGraduateMarket} graduated={[...liveGraduated, ...graduated]} mode={mode} onBet={openBet} onGraduate={onGraduate} toast={pushToast} onOpenAgent={openAgent} />
             )}
 
             {nav === "agents" && (

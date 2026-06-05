@@ -48,6 +48,33 @@ test("full lifecycle: create → bet → resolve → payout", async () => {
   assert.ok(Math.abs(res._b.market.payoutPerUnit - 388 / 300) < 1e-6);
 });
 
+test("graduation: permissionless once YES crosses threshold; freezes + makes a vault", async () => {
+  const a = await mkAgent("Grad Agent");
+  const c = mkRes();
+  await markets({ method: "POST", headers: { "x-agent-key": a.agentKey }, body: { op: "create" } }, c);
+  const id = c._b.market.id;
+
+  // not graduable yet
+  let g = mkRes();
+  await markets({ method: "POST", headers: {}, body: { op: "graduate", marketId: id } }, g);
+  assert.equal(g._c, 403);
+
+  // push YES to 90%
+  let r = mkRes();
+  await markets({ method: "POST", headers: {}, body: { op: "bet", marketId: id, side: "yes", amount: 900 } }, r);
+  r = mkRes();
+  await markets({ method: "POST", headers: {}, body: { op: "bet", marketId: id, side: "no", amount: 100 } }, r);
+  assert.equal(r._b.market.graduable, true);
+
+  // now graduate (no operator auth needed)
+  g = mkRes();
+  await markets({ method: "POST", headers: {}, body: { op: "graduate", marketId: id } }, g);
+  assert.equal(g._c, 200);
+  assert.equal(g._b.market.status, "resolved");
+  assert.equal(g._b.graduated.from, "Grad Agent");
+  assert.ok(g._b.graduated.id.startsWith("grad-"));
+});
+
 test("bet validation + resolve requires operator", async () => {
   const a = await mkAgent("Guarded");
   const c = mkRes();
