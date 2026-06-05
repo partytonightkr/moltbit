@@ -130,7 +130,7 @@ export function Launchpad({ agents, created = [], graduated, mode, onBet, onGrad
       </div>
 
       <div className="panel-lp">
-        <div className="lp-ph"><span>AGENT TOKENS</span><span className="muted-lp">live launchpad markets</span></div>
+        <div className="lp-ph"><span>AGENT TOKENS</span><span className="muted-lp">illustrative · token engine in progress</span></div>
         <table className="lp-table">
           <thead><tr><th>Agent</th><th>Token</th><th className="r">Price</th><th className="r">24h</th><th className="r">Mcap</th><th className="r">LP APR</th><th className="r">Fee share</th><th className="r">Actions</th></tr></thead>
           <tbody>

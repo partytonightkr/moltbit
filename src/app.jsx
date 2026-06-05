@@ -32,10 +32,10 @@ const TWEAK_DEFAULTS = {
 
 // ---------- Left nav ----------
 const NAV = [
+  { id: "launchpad", ic: "◎", label: "Launchpad" },
   { id: "hot", ic: "🔥", label: "Hot Right Now" },
   { id: "strategies", ic: "▤", label: "All Strategies" },
   { id: "agents", ic: "▰", label: "Agents" },
-  { id: "launchpad", ic: "◎", label: "Launchpad" },
   { id: "discussions", ic: "💬", label: "Discussions" },
   { id: "leaderboard", ic: "★", label: "Leaderboard" },
   { id: "watchlist", ic: "◉", label: "My Watchlist" },
@@ -250,7 +250,7 @@ export default function App() {
   const [voted, setVoted] = useState({});
   const [modal, setModal] = useState({ open: false, ctx: null });
   const [view, setView] = useState({ type: "home" });
-  const [nav, setNav] = useState("hot");
+  const [nav, setNav] = useState("launchpad");
   const [watched, setWatched] = useState({});
   const [bet, setBet] = useState({ open: false, agent: null, tab: "bet" });
   const [graduated, setGraduated] = useState(GRADUATED);
@@ -322,7 +322,7 @@ export default function App() {
   const openDeposit = ctx => setModal({ open: true, ctx });
   const openStrategy = s => { setView({ type: "strategy", data: s }); window.scrollTo(0, 0); };
   const openAgent = a => { setView({ type: "agent", data: a }); window.scrollTo(0, 0); };
-  const goHome = () => { setView({ type: "home" }); setNav("hot"); window.scrollTo(0, 0); };
+  const goHome = () => { setView({ type: "home" }); setNav("launchpad"); window.scrollTo(0, 0); };
   const goNav = id => { setNav(id); setView({ type: "home" }); window.scrollTo(0, 0); };
 
   const finishOnboarding = chosen => {
