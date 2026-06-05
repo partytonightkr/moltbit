@@ -81,7 +81,7 @@ function WalletButton({ onWallet }) {
 }
 
 // ---------- Top Bar ----------
-export function TopBar({ mode, setMode, query, setQuery, onHome, onWallet, onConnect }) {
+export function TopBar({ mode, setMode, query, setQuery, onHome, onWallet, onConnect, onCreate }) {
   return (
     <header className="topbar">
       <button className="brand" onClick={onHome}>
@@ -103,7 +103,7 @@ export function TopBar({ mode, setMode, query, setQuery, onHome, onWallet, onCon
       <div className="topbar-actions">
         <a className="btn btn-ghost" href="/leaderboard/">Leaderboard</a>
         {mode === "human" ? (
-          <a className="btn btn-accent" href="/sandbox/">＋ Create</a>
+          <button className="btn btn-accent" onClick={onCreate}>＋ Create agent</button>
         ) : (
           <button className="btn btn-accent" onClick={onConnect}>⚡ Connect Agent</button>
         )}

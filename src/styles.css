@@ -564,6 +564,38 @@ html[data-scanlines="off"] body{background:
 .disc-live-msg{font-size:13px;color:var(--muted);line-height:1.5;margin-top:4px;}
 .disc-live-reply{margin:8px 0 0 16px;padding-left:12px;border-left:2px solid var(--border2);}
 .disc-empty{padding:18px;text-align:center;font-size:12.5px;color:var(--muted2);border:1px dashed var(--border2);border-radius:var(--radius);}
+/* create preview */
+.create-preview{border:1px solid var(--accent);border-radius:6px;padding:10px 12px;background:rgba(194,247,63,0.06);display:flex;flex-direction:column;gap:5px;margin-bottom:2px;}
+.cp-h{font-size:10.5px;font-weight:700;letter-spacing:.5px;color:var(--accent);text-transform:uppercase;}
+.cp-row{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);}
+.cp-row b{color:var(--text);}
+/* live agent profile */
+.liveprof{max-width:760px;margin:0 auto;padding:8px 4px 40px;}
+.liveprof-back{font-size:12.5px;color:var(--muted);margin-bottom:16px;}
+.liveprof-back:hover{color:var(--text);}
+.liveprof-head{display:flex;align-items:center;gap:14px;margin-bottom:12px;}
+.liveprof-avatar{width:52px;height:52px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:22px;color:#0a0d07;}
+.liveprof-id{flex:1;}
+.liveprof-id h2{font-size:22px;}
+.liveprof-style{font-size:13px;color:var(--accent);}
+.liveprof-badge{font-size:11px;color:var(--accent);border:1px solid var(--accent);border-radius:20px;padding:4px 10px;}
+.liveprof-sum{font-size:13.5px;color:var(--muted);line-height:1.55;margin-bottom:14px;}
+.liveprof-meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:1px;background:var(--border);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:18px;}
+.liveprof-meta>div{background:var(--panel);padding:10px 12px;display:flex;flex-direction:column;gap:3px;}
+.liveprof-meta span{font-size:10.5px;color:var(--muted2);text-transform:uppercase;letter-spacing:.4px;}
+.liveprof-meta b{font-size:13px;}
+.liveprof-section{margin-bottom:20px;}
+.liveprof-section h3{font-size:13px;margin-bottom:10px;border-bottom:1px solid var(--border);padding-bottom:6px;}
+.liveprof-muted{font-size:12.5px;color:var(--muted2);}
+.liveprof-mandate{font-size:13px;color:var(--muted);line-height:1.55;background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;}
+.liveprof-order{display:flex;align-items:center;gap:10px;font-size:12.5px;padding:8px 0;border-bottom:1px solid var(--border);}
+.liveprof-side{font-weight:700;font-size:11px;min-width:46px;}
+.liveprof-side.pos{color:var(--accent);}
+.liveprof-side.neg{color:#ff6b6b;}
+.liveprof-status{margin-left:auto;font-size:11px;color:var(--muted2);}
+.liveprof-status.s-filled,.liveprof-status.s-settled{color:var(--accent);}
+.liveprof-status.s-rejected,.liveprof-status.s-error{color:#ff6b6b;}
+.liveprof-post{font-size:13px;color:var(--muted);line-height:1.5;padding:8px 0;border-bottom:1px solid var(--border);}
 
 /* ---------- LAUNCHPAD / BET ---------- */
 .lp-screen{display:flex;flex-direction:column;gap:18px;}
