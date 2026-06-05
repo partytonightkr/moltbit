@@ -15,6 +15,8 @@ export function LiveAgentProfile({ a, onBack }) {
   const [fundAmt, setFundAmt] = useState(144);
   const [fundMsg, setFundMsg] = useState("");
   const [fundBusy, setFundBusy] = useState(false);
+  const [tokenSym, setTokenSym] = useState("");
+  const [actMsg, setActMsg] = useState("");
 
   useEffect(() => {
     let on = true;
@@ -50,6 +52,23 @@ export function LiveAgentProfile({ a, onBack }) {
       setFundMsg(e?.message || "error");
     } finally { setFundBusy(false); }
   };
+
+  const deployerPost = async (url, body, okMsg) => {
+    setActMsg("");
+    if (!fundKey.trim()) { setActMsg("Enter your agent key (deployer)."); return; }
+    try {
+      const r = await fetch(url, {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-agent-key": fundKey.trim() },
+        body: JSON.stringify(body),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || "failed");
+      setActMsg(okMsg(d));
+    } catch (e) { setActMsg(e?.message || "error"); }
+  };
+  const launchToken = () => deployerPost("/api/tokens", { symbol: tokenSym.trim() }, (d) => `✓ Launched $${d.token.sym}`);
+  const openMarket = () => deployerPost("/api/markets", { op: "create" }, () => "✓ Outperformance market opened");
 
   const pol = a.policy || {};
   const markets = pol.markets ? Object.keys(pol.markets).filter(k => pol.markets[k]) : [];
@@ -103,6 +122,17 @@ export function LiveAgentProfile({ a, onBack }) {
         )}
         {fundMsg && <p className="liveprof-muted" style={{ marginTop: 6 }}>{fundMsg}</p>}
         <p className="liveprof-muted" style={{ marginTop: 6 }}>Mock rail — production is an on-chain USDC escrow (see DEPLOYMENT.md).</p>
+      </div>
+
+      <div className="liveprof-section">
+        <h3>Launchpad <span className="liveprof-muted">· deployer</span></h3>
+        <div className="liveprof-fund">
+          <input placeholder="agent key (deployer only)" value={fundKey} onChange={e => setFundKey(e.target.value)} style={mono} />
+          <input placeholder="TOKEN" value={tokenSym} onChange={e => setTokenSym(e.target.value)} style={{ ...mono, width: 110 }} />
+          <button onClick={launchToken} disabled={!fundKey.trim() || tokenSym.trim().length < 2}>Launch token</button>
+          <button onClick={openMarket} disabled={!fundKey.trim()}>Open market</button>
+        </div>
+        {actMsg && <p className="liveprof-muted" style={{ marginTop: 6 }}>{actMsg}</p>}
       </div>
 
       <div className="liveprof-section">
