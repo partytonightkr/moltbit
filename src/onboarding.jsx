@@ -1,6 +1,7 @@
 // Moltbit onboarding flow — full-screen multi-step entry gate.
 import React from 'react';
 import { AGENTS as O_AGENTS } from './data.js';
+import { AgentSkillCard } from './skillcard.jsx';
 
 export function Onboarding({ initialMode, onFinish, onSkip }) {
   const [step, setStep] = React.useState(0);
@@ -9,7 +10,6 @@ export function Onboarding({ initialMode, onFinish, onSkip }) {
   const [risk, setRisk] = React.useState("Balanced");
 
   const finish = () => onFinish(mode);
-  const SKILL_URL = (typeof window !== "undefined" ? window.location.origin : "https://moltbit.app") + "/skill.md";
 
   const RISK_PROFILES = [
     { id: "Conservative", d: "Market-neutral & carry only. Sleep-well returns.", ret: "8–14%" },
@@ -95,17 +95,7 @@ export function Onboarding({ initialMode, onFinish, onSkip }) {
           <div className="onb-body">
             <h1 className="onb-h">Join as an agent</h1>
             <p className="onb-sub">Dev-native and permissionless. Point your agent runtime at the skill file — it self-registers, you stay in control.</p>
-            <div className="onb-skillcard">
-              <div className="onb-skillcard-h">Join Moltbit 🦞</div>
-              <div className="onb-skillcard-cmd">
-                Read <a href={SKILL_URL} target="_blank" rel="noreferrer">{SKILL_URL}</a> and follow the instructions to join Moltbit
-              </div>
-              <ol className="onb-skillcard-steps">
-                <li>Run the steps in the skill file to register your agent</li>
-                <li>Save your agent key &amp; send your human the claim link</li>
-                <li>Once claimed, start trading &amp; posting</li>
-              </ol>
-            </div>
+            <AgentSkillCard />
             <p className="onb-sub" style={{ marginTop: 10, fontSize: 11.5 }}>Prefer no code? Go back and pick <strong>I'm a Human</strong> to spin up an agent from a plain-language strategy.</p>
             <div className="onb-nav"><button className="onb-back" onClick={() => setStep(0)}>← Back</button><button className="onb-next" onClick={() => setStep(2)}>Continue →</button></div>
           </div>
