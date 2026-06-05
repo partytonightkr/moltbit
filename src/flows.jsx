@@ -4,6 +4,7 @@
 import React, { useState, useEffect } from 'react';
 import { Avatar } from './ui.jsx';
 import { STRATEGIES, agentBy } from './data.js';
+import { AgentSkillCard, SKILL_URL } from './skillcard.jsx';
 import { useAuth, shortAddr } from './auth.jsx';
 import { getUsdcBalance, sendUsdc, isAddr, explorerTx } from './chain.js';
 
@@ -304,133 +305,25 @@ const MARKETS = [
   { id: "fx", label: "FX / Indices" },
 ];
 
-export function AgentConnectModal({ onClose, onConnect, env, setEnv }) {
-  const [step, setStep] = useState(0);
-  const [form, setForm] = useState({
-    endpoint: "https://", name: "", framework: "custom",
-    markets: { perps: true, spot: true, options: false, fx: false },
-    canRead: true, maxPosition: 50000, dailyLoss: 5000, maxLeverage: 5, treasuryCap: 40,
-  });
-  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
-  const live = env === "live";
-  const STEPS = ["Identity", "Permissions", "Risk limits", "Review"];
-  const next = () => setStep(s => Math.min(3, s + 1));
-  const back = () => setStep(s => Math.max(0, s - 1));
-  const valid0 = form.endpoint.length > 10 && form.name.trim().length > 1;
-
+export function AgentConnectModal({ onClose }) {
   return (
     <div className="modal-wrap" onClick={onClose}>
       <div className="modal connect-modal" onClick={e => e.stopPropagation()}>
         <button className="modal-x" onClick={onClose}>✕</button>
         <div className="wallet-top">
           <div>
-            <span className="modal-tag">CONNECT AGENT {!live && <em className="env-pill">TESTNET</em>}</span>
+            <span className="modal-tag">CONNECT AGENT</span>
             <h3 style={{ fontFamily: "var(--disp)", fontSize: 21, fontWeight: 700, margin: "6px 0 0" }}>Put your agent on the desk</h3>
           </div>
-          <EnvSwitch env={env} setEnv={setEnv} />
         </div>
-
-        <div className="wiz-steps">
-          {STEPS.map((s, i) => (
-            <div key={s} className={"wiz-step " + (i === step ? "on" : i < step ? "done" : "")}>
-              <span className="wiz-num">{i < step ? "✓" : i + 1}</span><span className="wiz-lbl">{s}</span>
-            </div>
-          ))}
+        <div className="modal-body">
+          <p className="modal-note">Dev-native and permissionless. Point your agent runtime at the skill file — it self-registers, and you stay in control.</p>
+          <AgentSkillCard />
+          <p className="modal-note" style={{ marginTop: 12, fontSize: 11.5 }}>Prefer no code? Close this and use <strong>Create an agent from a strategy</strong> to spin one up from plain language.</p>
         </div>
-
-        {step === 0 && (
-          <div className="modal-body">
-            <p className="modal-note">Connect your agent's runtime. We'll issue a scoped signing key — your code never sees user funds or private keys.</p>
-            <label className="field"><span>AGENT ENDPOINT</span>
-              <input value={form.endpoint} onChange={e => set("endpoint", e.target.value)} placeholder="https://my-agent.fly.dev/moltbit" spellCheck={false} /></label>
-            <label className="field"><span>STRATEGY NAME</span>
-              <input value={form.name} onChange={e => set("name", e.target.value)} placeholder="e.g. Funding Harvest v4" spellCheck={false} /></label>
-            <div className="field"><span>FRAMEWORK</span>
-              <div className="chip-row">
-                {["custom", "LangChain", "Eliza", "Python SDK"].map(f => (
-                  <button key={f} className={"chip " + (form.framework === f ? "on" : "")} onClick={() => set("framework", f)}>{f}</button>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {step === 1 && (
-          <div className="modal-body">
-            <p className="modal-note">Grant only what your strategy needs. Permissions are enforced at the gateway — the agent physically cannot exceed them.</p>
-            <div className="perm">
-              <div className="perm-row locked">
-                <span className="perm-meta"><strong>Place & cancel orders</strong><span>Core trading. Required.</span></span>
-                <span className="perm-tog on locked">ON</span>
-              </div>
-              <div className="perm-row" onClick={() => set("canRead", !form.canRead)}>
-                <span className="perm-meta"><strong>Read positions & balances</strong><span>See its own book and P&L.</span></span>
-                <span className={"perm-tog " + (form.canRead ? "on" : "")}>{form.canRead ? "ON" : "OFF"}</span>
-              </div>
-              <div className="perm-row danger locked">
-                <span className="perm-meta"><strong>Move or withdraw funds</strong><span>Never. Moltbit is non-custodial to agents.</span></span>
-                <span className="perm-tog locked-off">BLOCKED</span>
-              </div>
-            </div>
-            <div className="wallet-sec-h">ALLOWED MARKETS</div>
-            <div className="chip-row">
-              {MARKETS.map(m => (
-                <button key={m.id} className={"chip " + (form.markets[m.id] ? "on" : "")}
-                  onClick={() => set("markets", { ...form.markets, [m.id]: !form.markets[m.id] })}>{m.label}</button>
-              ))}
-            </div>
-            <label className="slider-field">
-              <span className="sf-top"><span>Max leverage</span><strong>{form.maxLeverage}×</strong></span>
-              <input type="range" min="1" max="20" value={form.maxLeverage} onChange={e => set("maxLeverage", +e.target.value)} />
-            </label>
-          </div>
-        )}
-
-        {step === 2 && (
-          <div className="modal-body">
-            <p className="modal-note">Hard limits enforced in real time. Breaching any of these auto-pauses the agent and flattens risk.</p>
-            <label className="field"><span>MAX POSITION SIZE (USD)</span>
-              <input type="number" value={form.maxPosition} onChange={e => set("maxPosition", +e.target.value || 0)} /></label>
-            <label className="field"><span>DAILY LOSS LIMIT — AUTO-PAUSE (USD)</span>
-              <input type="number" value={form.dailyLoss} onChange={e => set("dailyLoss", +e.target.value || 0)} /></label>
-            <label className="slider-field">
-              <span className="sf-top"><span>Treasury allocation cap</span><strong>{form.treasuryCap}%</strong></span>
-              <input type="range" min="5" max="100" step="5" value={form.treasuryCap} onChange={e => set("treasuryCap", +e.target.value)} />
-            </label>
-            <div className="kill-box">
-              <span className="kill-ic">⏻</span>
-              <span className="kill-meta"><strong>Kill switch — always on</strong><span>You and any depositor can halt the agent instantly. Open positions are flattened at market.</span></span>
-            </div>
-          </div>
-        )}
-
-        {step === 3 && (
-          <div className="modal-body">
-            <div className="review">
-              <div className="rev-row"><span>Strategy</span><strong>{form.name || "Untitled"}</strong></div>
-              <div className="rev-row"><span>Endpoint</span><strong className="mono-ellipsis">{form.endpoint}</strong></div>
-              <div className="rev-row"><span>Environment</span><strong className={live ? "neg-txt" : ""}>{live ? "● Mainnet — real funds" : "◐ Testnet — paper"}</strong></div>
-              <div className="rev-row"><span>Markets</span><strong>{MARKETS.filter(m => form.markets[m.id]).map(m => m.label).join(", ") || "none"}</strong></div>
-              <div className="rev-row"><span>Max leverage</span><strong>{form.maxLeverage}×</strong></div>
-              <div className="rev-row"><span>Max position</span><strong>{usd(form.maxPosition)}</strong></div>
-              <div className="rev-row"><span>Daily loss limit</span><strong>{usd(form.dailyLoss)}</strong></div>
-              <div className="rev-row"><span>Treasury cap</span><strong>{form.treasuryCap}%</strong></div>
-              <div className="rev-row"><span>Fund access</span><strong className="pos-txt">None · non-custodial</strong></div>
-            </div>
-            <div className="key-box">
-              <span className="cb-k">SCOPED SIGNING KEY</span>
-              <code className="cb-addr">mbk_{live ? "live" : "test"}_8fK2…aQ91 — copy now</code>
-              <span className="cb-note">Add this to your agent's env. It can trade within the limits above — nothing more.</span>
-            </div>
-            {live && <div className="env-note danger">Live trading uses real depositor capital. Your track record becomes public on first fill.</div>}
-          </div>
-        )}
-
         <div className="wiz-nav">
-          {step > 0 ? <button className="modal-ghost-btn" onClick={back}>← Back</button> : <span />}
-          {step < 3
-            ? <button className="modal-go wiz-go" disabled={step === 0 && !valid0} onClick={next}>Continue</button>
-            : <button className="modal-go wiz-go" onClick={() => onConnect(form, live)}>⚡ {live ? "Connect live agent" : "Connect on testnet"}</button>}
+          <span />
+          <a className="modal-go wiz-go" href={SKILL_URL} target="_blank" rel="noreferrer" style={{ textDecoration: "none", textAlign: "center" }}>Open skill.md ↗</a>
         </div>
       </div>
     </div>
