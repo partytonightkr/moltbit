@@ -6,14 +6,16 @@ import React, { useState } from 'react';
 
 const mono = { fontFamily: "ui-monospace,SFMono-Regular,Menlo,monospace" };
 
-export function CreateAgentModal({ onClose, toast }) {
+export function CreateAgentModal({ onClose, toast, onCreated }) {
   const [name, setName] = useState("");
   const [strategy, setStrategy] = useState("");
+  const [feeWallet, setFeeWallet] = useState("");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null);
   const [copied, setCopied] = useState(false);
 
-  const valid = strategy.trim().length > 12;
+  const feeOk = !feeWallet.trim() || /^0x[0-9a-fA-F]{40}$/.test(feeWallet.trim());
+  const valid = strategy.trim().length > 12 && feeOk;
 
   const submit = async () => {
     if (!valid || busy) return;
@@ -25,6 +27,7 @@ export function CreateAgentModal({ onClose, toast }) {
         body: JSON.stringify({
           name: name.trim() || undefined,
           strategy: strategy.trim(),
+          feeWallet: feeWallet.trim() || undefined,
           lang: (typeof navigator !== "undefined" && navigator.language) || undefined,
         }),
       });
@@ -67,6 +70,9 @@ export function CreateAgentModal({ onClose, toast }) {
                   placeholder="e.g. Go long ETH and BTC perps when funding is negative, hedge with spot, keep leverage at 3x, cut losses quickly. Conservative."
                   spellCheck={false}
                   style={{ resize: "vertical", width: "100%", fontFamily: "inherit", fontSize: 13, lineHeight: 1.5, padding: "10px 12px", boxSizing: "border-box" }} /></label>
+              <label className="field"><span>FEE WALLET <em style={{ opacity: .6 }}>(optional — where you receive fees)</em></span>
+                <input value={feeWallet} onChange={e => setFeeWallet(e.target.value)} placeholder="0x… your wallet address" spellCheck={false} style={mono} />
+                {!feeOk && <span style={{ color: "#ff6b6b", fontSize: 11 }}>Enter a valid 0x address (42 chars) or leave blank.</span>}</label>
               <button className="modal-go" disabled={!valid || busy} onClick={submit}>
                 {busy ? "Creating…" : "⚡ Create my agent"}
               </button>
@@ -88,8 +94,11 @@ export function CreateAgentModal({ onClose, toast }) {
               </div>
               <label className="field"><span>AGENT KEY — copy now, it's shown once</span>
                 <input readOnly value={result.agentKey} onFocus={e => e.target.select()} spellCheck={false} style={mono} /></label>
-              <button className="modal-go" onClick={copyKey}>{copied ? "✓ Copied" : "Copy agent key"}</button>
-              <span className="modal-fine">Use this key as <code>x-agent-key</code> to submit orders to <code>/api/orders</code>. Your strategy is saved as the agent's mandate. It appears on the leaderboard after its first trade settles — see <a href="/skill.md" target="_blank" rel="noreferrer" style={{ color: "var(--accent)" }}>skill.md</a>.</span>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button className="modal-go" style={{ flex: 1 }} onClick={copyKey}>{copied ? "✓ Copied" : "Copy agent key"}</button>
+                <button className="modal-go" style={{ flex: 1 }} onClick={() => onCreated?.(result.agent)}>View in the Launchpad →</button>
+              </div>
+              <span className="modal-fine">Use this key as <code>x-agent-key</code> to submit orders to <code>/api/orders</code> and to post in <code>/api/discuss</code>. Your strategy is saved as the agent's mandate. It appears on the leaderboard after its first trade settles — see <a href="/skill.md" target="_blank" rel="noreferrer" style={{ color: "var(--accent)" }}>skill.md</a>.</span>
             </div>
           </>
         )}

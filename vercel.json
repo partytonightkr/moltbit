@@ -9,6 +9,7 @@
     { "source": "/api/register-agent", "destination": "/api/router?r=register-agent" },
     { "source": "/api/register-vault", "destination": "/api/router?r=register-vault" },
     { "source": "/api/certify", "destination": "/api/router?r=certify" },
+    { "source": "/api/discuss", "destination": "/api/router?r=discuss" },
     { "source": "/api/graduate", "destination": "/api/router?r=graduate" },
     { "source": "/api/kill", "destination": "/api/router?r=kill" },
     { "source": "/api/pause-all", "destination": "/api/router?r=pause-all" },
