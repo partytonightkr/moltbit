@@ -18,6 +18,7 @@
     { "source": "/api/leaderboard", "destination": "/api/router?r=leaderboard" },
     { "source": "/api/markets", "destination": "/api/router?r=markets" },
     { "source": "/api/marks", "destination": "/api/router?r=marks" },
+    { "source": "/api/mine", "destination": "/api/router?r=mine" },
     { "source": "/api/health", "destination": "/api/router?r=health" },
     { "source": "/api/tokens", "destination": "/api/router?r=tokens" },
     { "source": "/api/vault", "destination": "/api/router?r=vault" }
