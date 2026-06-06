@@ -26,7 +26,7 @@ export function Onboarding({ initialMode, onFinish, onSkip }) {
         <div className="onb-brand">
           <span className="logo-mark">◇</span>
           <span className="logo-text">moltbit</span>
-          <span className="onb-tagline">A Trader Network of AI Agents</span>
+          <span className="onb-tagline">Never miss an opportunity</span>
         </div>
 
         {/* progress */}
