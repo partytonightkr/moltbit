@@ -129,32 +129,50 @@ export function Launchpad({ agents, created = [], tokens = [], markets = [], onB
         </div>
       </div>
 
-      {tokens.length > 0 && (
-        <div className="panel-lp" style={{ marginBottom: 16 }}>
-          <div className="lp-ph"><span className="live-pulse">● LIVE</span> · agent tokens<span className="muted-lp">launched via Moltbit</span></div>
-          <table className="lp-table">
-            <thead><tr><th>Agent</th><th>Token</th><th className="r">Supply</th><th className="r">Holder fees</th><th className="r">Status</th><th className="r">Actions</th></tr></thead>
-            <tbody>
-              {tokens.map(t => (
-                <tr key={t.agentId + t.sym}>
-                  <td><b>{t.agentName}</b></td>
-                  <td className="mono-lp">${t.sym}</td>
-                  <td className="r mono-lp">{(t.supply || 0).toLocaleString()}</td>
-                  <td className="r pos">{t.feeShare}%</td>
-                  <td className="r mono-lp">{t.address ? "on-chain" : "pre-pool"}</td>
-                  <td className="r">
-                    <div className="lp-acts">
-                      <button className="lp-b" onClick={() => toast && toast(`$${t.sym} buy — on-chain pool launching soon`)}>Buy</button>
-                      <button className="lp-b bet" onClick={() => toast && toast(`Bet on ${t.agentName} — markets open at on-chain launch`)}>Bet</button>
-                      <button className="lp-b" onClick={() => onMine && onMine(t)}>Mine</button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      {(() => {
+        const createdNoToken = created.filter(c => !tokens.some(t => t.agentId === c.id));
+        if (tokens.length === 0 && createdNoToken.length === 0) return null;
+        return (
+          <div className="panel-lp" style={{ marginBottom: 16 }}>
+            <div className="lp-ph"><span className="live-pulse">● LIVE</span> · agent tokens<span className="muted-lp">launched via Moltbit</span></div>
+            <table className="lp-table">
+              <thead><tr><th>Agent</th><th>Token</th><th className="r">Supply</th><th className="r">Holder fees</th><th className="r">Status</th><th className="r">Actions</th></tr></thead>
+              <tbody>
+                {tokens.map(t => (
+                  <tr key={t.agentId + t.sym}>
+                    <td><b>{t.agentName}</b></td>
+                    <td className="mono-lp">${t.sym}</td>
+                    <td className="r mono-lp">{(t.supply || 0).toLocaleString()}</td>
+                    <td className="r pos">{t.feeShare}%</td>
+                    <td className="r mono-lp">{t.address ? "on-chain" : "pre-pool"}</td>
+                    <td className="r">
+                      <div className="lp-acts">
+                        <button className="lp-b" onClick={() => toast && toast(`$${t.sym} buy — on-chain pool launching soon`)}>Buy</button>
+                        <button className="lp-b bet" onClick={() => toast && toast(`Bet on ${t.agentName} — markets open at on-chain launch`)}>Bet</button>
+                        <button className="lp-b" onClick={() => onMine && onMine(t)}>Mine</button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {createdNoToken.map(c => (
+                  <tr key={c.id}>
+                    <td><b>{c.name}</b></td>
+                    <td className="mono-lp">—</td>
+                    <td className="r mono-lp">—</td>
+                    <td className="r mono-lp">—</td>
+                    <td className="r muted-lp">no token yet</td>
+                    <td className="r">
+                      <div className="lp-acts">
+                        <button className="lp-b bet" onClick={() => onOpenAgent && onOpenAgent(c)}>Launch →</button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+      })()}
 
       <div className="panel-lp">
         <div className="lp-ph"><span>AGENT TOKENS</span><span className="muted-lp">illustrative · token engine in progress</span></div>
