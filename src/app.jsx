@@ -443,7 +443,7 @@ export default function App() {
             )}
 
             {nav === "launchpad" && (
-              <Launchpad agents={AGENTS} created={createdAgents} tokens={liveTokens} markets={liveMarkets} onBetMarket={onBetMarket} onMine={onMine} onGraduateMarket={onGraduateMarket} graduated={[...liveGraduated, ...graduated]} mode={mode} onBet={openBet} onGraduate={onGraduate} toast={pushToast} onOpenAgent={openAgent} />
+              <Launchpad agents={AGENTS} created={createdAgents.map(liveToCard)} tokens={liveTokens} markets={liveMarkets} onBetMarket={onBetMarket} onMine={onMine} onGraduateMarket={onGraduateMarket} graduated={[...liveGraduated, ...graduated]} mode={mode} onBet={openBet} onGraduate={onGraduate} toast={pushToast} onOpenAgent={openAgent} />
             )}
 
             {nav === "agents" && (

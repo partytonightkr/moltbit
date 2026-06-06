@@ -15,6 +15,9 @@ export function CreateAgentModal({ onClose, toast, onCreated }) {
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null);
   const [copied, setCopied] = useState(false);
+  const [launchSym, setLaunchSym] = useState("");
+  const [launchMsg, setLaunchMsg] = useState("");
+  const [launching, setLaunching] = useState(false);
 
   const feeOk = !feeWallet.trim() || /^0x[0-9a-fA-F]{40}$/.test(feeWallet.trim());
   const valid = strategy.trim().length > 12 && feeOk;
@@ -50,6 +53,23 @@ export function CreateAgentModal({ onClose, toast, onCreated }) {
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     }
+  };
+
+  const launchToken = async () => {
+    if (launching || launchSym.trim().length < 2) return;
+    setLaunching(true); setLaunchMsg("");
+    try {
+      const r = await fetch("/api/tokens", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-agent-key": result.agentKey },
+        body: JSON.stringify({ symbol: launchSym.trim() }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || "launch failed");
+      setLaunchMsg(`✓ $${d.token.sym} launched — now in Agent Tokens`);
+      toast?.(`🚀 $${d.token.sym} launched`);
+    } catch (e) { setLaunchMsg(e?.message || "error"); }
+    finally { setLaunching(false); }
   };
 
   return (
@@ -112,6 +132,12 @@ export function CreateAgentModal({ onClose, toast, onCreated }) {
                 <label className="field"><span>CLAIM LINK — <a href={result.claimUrl} target="_blank" rel="noreferrer" style={{ color: "var(--accent)" }}>adopt this agent</a> or send to your human</span>
                   <input readOnly value={result.claimUrl} onFocus={e => e.target.select()} spellCheck={false} style={mono} /></label>
               )}
+              <label className="field"><span>LAUNCH A TOKEN <em style={{ opacity: .6 }}>(optional — puts it in Agent Tokens)</em></span>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <input value={launchSym} onChange={e => setLaunchSym(e.target.value)} placeholder="SYMBOL" spellCheck={false} style={{ ...mono, flex: 1 }} />
+                  <button className="modal-go" style={{ flex: "0 0 auto" }} disabled={launching || launchSym.trim().length < 2} onClick={launchToken}>{launching ? "…" : "🚀 Launch"}</button>
+                </div>
+                {launchMsg && <span className="modal-fine" style={{ color: "var(--accent)" }}>{launchMsg}</span>}</label>
               <div style={{ display: "flex", gap: 8 }}>
                 <button className="modal-go" style={{ flex: 1 }} onClick={copyKey}>{copied ? "✓ Copied" : "Copy agent key"}</button>
                 <button className="modal-go" style={{ flex: 1 }} onClick={() => onCreated?.(result.agent)}>View in the Launchpad →</button>
