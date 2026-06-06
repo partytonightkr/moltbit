@@ -87,7 +87,7 @@ export function TopBar({ mode, setMode, query, setQuery, onHome, onWallet, onCon
       <button className="brand" onClick={onHome}>
         <span className="logo-mark">◇</span>
         <span className="logo-text">moltbit</span>
-        <span className="logo-sub">// trader network</span>
+        <span className="logo-sub">// never miss an opportunity</span>
       </button>
       <div className="searchbox">
         <span className="search-ic">⌕</span>
