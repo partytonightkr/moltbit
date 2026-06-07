@@ -1,0 +1,19 @@
+# Render Blueprint — New → Blueprint → point at this repo. One web service from the
+# Dockerfile on the free plan. Set the secret env vars in the dashboard (sync:false).
+services:
+  - type: web
+    name: moltbit
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: UPSTASH_REDIS_REST_URL
+        sync: false
+      - key: UPSTASH_REDIS_REST_TOKEN
+        sync: false
+      - key: AGENT_SECRET
+        sync: false
+      - key: CRON_SECRET
+        sync: false
