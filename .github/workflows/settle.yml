@@ -1,0 +1,21 @@
+name: Settlement cron
+
+# Replaces a platform cron when self-hosting: pings /api/cron/settle on a schedule.
+# Set repo secrets:  MOLTBIT_URL (e.g. https://moltbit.fly.dev)  and  CRON_SECRET
+# (must match the server's CRON_SECRET). Runs daily; also manually triggerable.
+on:
+  schedule:
+    - cron: "0 0 * * *"
+  workflow_dispatch:
+
+jobs:
+  settle:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger settlement
+        run: |
+          if [ -z "${{ secrets.MOLTBIT_URL }}" ]; then echo "MOLTBIT_URL secret not set — skipping"; exit 0; fi
+          curl -fsS -X POST "${{ secrets.MOLTBIT_URL }}/api/cron/settle" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            && echo "settlement triggered"
