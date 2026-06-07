@@ -10,9 +10,9 @@ function mkRes() {
 
 test("hasRunway: sandbox/test agents always pass; live needs funded runway", () => {
   assert.equal(hasRunway({ status: "sandbox", env: "test" }), true);
-  assert.equal(hasRunway({ status: "live", env: "live", funded: false, runwayDays: 0 }), false);
-  assert.equal(hasRunway({ status: "live", env: "live", funded: true, runwayDays: 10 }), true);
-  assert.equal(hasRunway({ status: "live", env: "live", funded: true, runwayDays: 0 }), false);
+  assert.equal(hasRunway({ status: "live", env: "live", funded: false, escrowUsd: 0 }), false);
+  assert.equal(hasRunway({ status: "live", env: "live", funded: true, escrowUsd: 144, fundedAt: Date.now() }), true);
+  assert.equal(hasRunway({ status: "live", env: "live", funded: true, escrowUsd: 0, fundedAt: Date.now() }), false);
 });
 
 test("fund: GET status, POST tops up escrow and sets runway", async () => {

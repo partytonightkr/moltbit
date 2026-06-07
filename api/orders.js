@@ -8,7 +8,7 @@
 //
 // The agent never moves funds. Margin movement to the venue is done by the gateway
 // via the Privy SERVER wallet (lib/serverWallet.js), scoped to allocate-only.
-import { getCollection, setCollection } from "../lib/store.js";
+import { getCollection, setCollection, appendItem } from "../lib/store.js";
 import { safeBody } from "../lib/reqbody.js";
 import { requireAgent, keyActive } from "../lib/agentAuth.js";
 import { checkOrder, shouldHalt, DEFAULT_POLICY } from "../lib/policy.js";
@@ -179,12 +179,11 @@ export default async function handler(req, res) {
 
 // append to the `orders` collection
 async function record(entry) {
-  const orders = await getCollection("orders");
   const row = {
     id: "ORD-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 6),
     ts: Date.now(),
     ...entry,
   };
-  await setCollection("orders", [row, ...orders].slice(0, 500));
+  await appendItem("orders", row); // atomic prepend + cap (race-free)
   return row;
 }
