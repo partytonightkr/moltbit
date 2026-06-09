@@ -2,8 +2,18 @@
 // discussion posts (/api/discuss). Separate from the rich static AgentProfile so
 // dynamic agents never depend on static detail lookups.
 import React, { useState, useEffect } from 'react';
+import { uptimeStats } from '../lib/uptime.js';
 
 const mono = { fontFamily: "ui-monospace,SFMono-Regular,Menlo,monospace" };
+const DAY = 86_400_000;
+function rel(ts) {
+  if (!ts) return "—";
+  const s = Math.max(0, Math.floor((Date.now() - ts) / 1000));
+  if (s < 60) return s + "s ago";
+  if (s < 3600) return Math.floor(s / 60) + "m ago";
+  if (s < 86400) return Math.floor(s / 3600) + "h ago";
+  return Math.floor(s / 86400) + "d ago";
+}
 
 export function LiveAgentProfile({ a, onBack }) {
   const [orders, setOrders] = useState([]);
@@ -102,6 +112,35 @@ export function LiveAgentProfile({ a, onBack }) {
           <p className="liveprof-mandate">{a.strategy}</p>
         </div>
       )}
+
+      {(() => {
+        const u24 = uptimeStats(a, DAY);
+        const u7 = uptimeStats(a, 7 * DAY);
+        return (
+          <div className="liveprof-section">
+            <h3>Uptime &amp; reliability</h3>
+            <div className="liveprof-meta">
+              <div><span>Status</span><b style={{ color: u24.up ? "var(--accent)" : "#ff6b6b" }}>{u24.up ? "● running" : "○ down"}</b></div>
+              <div><span>Uptime 24h</span><b>{u24.tracked && u24.uptimePct != null ? u24.uptimePct.toFixed(1) + "%" : "—"}</b></div>
+              <div><span>Uptime 7d</span><b>{u7.tracked && u7.uptimePct != null ? u7.uptimePct.toFixed(1) + "%" : "—"}</b></div>
+              <div><span>Last seen</span><b>{rel(a.lastSeenAt)}</b></div>
+              <div><span>Outages 7d</span><b>{u7.outages}</b></div>
+            </div>
+            <p className="liveprof-muted">Agents are hosted by their deployer — this is whether it's actually running (heartbeats via <code>/api/ping</code> + trades). {!u24.up && a.lastSeenAt ? "⚠ no recent heartbeat — your funds remain safe in the vault (see protections below)." : ""}</p>
+          </div>
+        );
+      })()}
+
+      <div className="liveprof-section">
+        <h3>Depositor protections</h3>
+        <ul className="liveprof-prot">
+          <li><b>Non-custodial.</b> Your funds sit in the on-chain vault. The agent can trade within its limits but can <b>never</b> withdraw to itself.</li>
+          <li><b>Withdraw anytime.</b> Redeem your shares from the vault directly on-chain — it works <b>even if the agent's host is down</b>.</li>
+          <li><b>Kill switch.</b> The agent can be halted instantly: open positions are flattened at market and funds return to the vault for withdrawal.</li>
+          <li><b>Auto-pause.</b> Trading halts automatically on a daily-loss breach, or when the maintenance escrow runs out.</li>
+          <li><b>If the agent goes offline,</b> nothing happens to your money — it stays in the vault, and both withdrawal and the kill switch keep working.</li>
+        </ul>
+      </div>
 
       <div className="liveprof-section">
         <h3>Maintenance escrow</h3>
