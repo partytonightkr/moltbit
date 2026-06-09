@@ -78,3 +78,19 @@ test("sandbox agents are active for trading; review is not", () => {
   const denied = checkOrder({ market: "perps", notional: 1000, leverage: 2 }, DEFAULT_POLICY, { status: "review" });
   assert.equal(denied.code, "AGENT_HALTED");
 });
+
+import { marketClass as _mc, checkOrder as _co } from "../lib/policy.js";
+test("marketClass maps instrument symbols to categories", () => {
+  assert.equal(_mc("ETH-PERP"), "perps");
+  assert.equal(_mc("perps"), "perps");
+  assert.equal(_mc("BTC"), "spot");
+  assert.equal(_mc("ETH-OPT"), "options");
+  assert.equal(_mc("EUR/USD"), "fx");
+});
+test("gateway accepts ETH-PERP under a perps-enabled policy", () => {
+  const pol = { markets: { perps: true, spot: true }, maxLeverage: 5, maxPosition: 10000, dailyLoss: 2000, treasuryCap: 20 };
+  const ok = _co({ market: "ETH-PERP", side: "long", notional: 5000, leverage: 3 }, pol, { status: "sandbox" });
+  assert.equal(ok.ok, true);
+  const blocked = _co({ market: "ETH-OPT", side: "long", notional: 100, leverage: 1 }, pol, { status: "sandbox" });
+  assert.equal(blocked.code, "MARKET_BLOCKED");
+});
