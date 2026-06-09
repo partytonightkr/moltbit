@@ -11,7 +11,7 @@ import { CreateAgentModal } from './create.jsx';
 import { LiveAgentProfile } from './liveagent.jsx';
 import { liveToCard, mergeLive } from './live.js';
 import { useAuth } from './auth.jsx';
-import { sendUsdc, depositAddressFor, vaultAddressFor, depositToVault, isAddr, explorerTx } from './chain.js';
+import { sendUsdc, depositAddressFor, vaultAddressFor, depositToVault, requestVaultRedeem, isAddr, explorerTx } from './chain.js';
 import { AGENTS, STRATEGIES, ACTIVITY, agentBy, GRADUATED } from './data.js';
 import {
   useTweaks, TweaksPanel, TweakSection, TweakColor,
@@ -112,6 +112,7 @@ function DepositModal({ ctx, mode, env, toast, onClose }) {
   const auth = useAuth();
   const [amt, setAmt] = useState(5000);
   const [busy, setBusy] = useState(false);
+  const [tab, setTab] = useState("deposit"); // deposit | withdraw
   const strat = ctx;
   const author = strat ? agentBy(strat.author) : null;
   const isAgent = mode === "agent";
@@ -152,6 +153,24 @@ function DepositModal({ ctx, mode, env, toast, onClose }) {
     onClose();
   };
 
+  // Depositor exit: redeem vault shares (works regardless of the agent's uptime).
+  const doWithdraw = async () => {
+    if (real && isAddr(vaultAddr)) {
+      try {
+        setBusy(true);
+        const hash = await requestVaultRedeem(env || "test", auth.wallet, vaultAddr, amt, auth.smartClient);
+        toast?.(`Withdrawal requested — ${amt.toLocaleString()} shares burn at NAV · ${hash.slice(0, 10)}…`);
+        onClose();
+      } catch (e) {
+        toast?.("Withdraw failed: " + (e?.shortMessage || e?.message || "error"));
+      } finally { setBusy(false); }
+      return;
+    }
+    toast?.(real ? "No vault configured for this strategy" : `Withdrawal requested for ${amt.toLocaleString()} shares`);
+    onClose();
+  };
+  const withdrawing = tab === "withdraw";
+
   return (
     <div className="modal-wrap" onClick={onClose}>
       <div className="modal" onClick={e => e.stopPropagation()}>
@@ -177,37 +196,59 @@ function DepositModal({ ctx, mode, env, toast, onClose }) {
           </div>
         ) : (
           <div className="modal-body">
+            {!isAgent && (
+              <div className="dep-tabs">
+                <button className={tab === "deposit" ? "on" : ""} onClick={() => setTab("deposit")}>Deposit</button>
+                <button className={tab === "withdraw" ? "on" : ""} onClick={() => setTab("withdraw")}>Withdraw</button>
+              </div>
+            )}
             <div className="amt-row">
-              <span className="amt-cur">$</span>
+              <span className="amt-cur">{withdrawing ? "◈" : "$"}</span>
               <input className="amt-input" type="number" value={amt} onChange={e => setAmt(Math.max(0, +e.target.value || 0))} />
-              <span className="amt-unit">USDC</span>
+              <span className="amt-unit">{withdrawing ? "shares" : "USDC"}</span>
             </div>
             <div className="amt-presets">
               {[1000, 5000, 25000, 100000].map(v => (
-                <button key={v} className={"preset " + (amt === v ? "on" : "")} onClick={() => setAmt(v)}>${v >= 1000 ? v / 1000 + "k" : v}</button>
+                <button key={v} className={"preset " + (amt === v ? "on" : "")} onClick={() => setAmt(v)}>{v >= 1000 ? v / 1000 + "k" : v}</button>
               ))}
             </div>
-            <div className="modal-breakdown">
-              <div className="mb-row"><span>Projected 1Y return</span><span className="pos">+${Math.round(est).toLocaleString()}</span></div>
-              <div className="mb-row"><span>Performance fee</span><span>10% of profit</span></div>
-              <div className="mb-row"><span>Settlement</span><span>{onChain ? (env === "live" ? "Base · vault shares at NAV" : "Base Sepolia · vault shares") : "anytime · T+0"}</span></div>
-            </div>
-            <button className="modal-go" disabled={busy || amt <= 0} onClick={doDeposit}>
-              {busy ? "Confirming…" : isAgent ? "⚡ Allocate $" + amt.toLocaleString() : (onChain ? "＋ Deposit $" + amt.toLocaleString() + " USDC" : "＋ Deposit $" + amt.toLocaleString())}
+            {withdrawing ? (
+              <div className="modal-breakdown">
+                <div className="mb-row"><span>Burns</span><span>{amt.toLocaleString()} shares at NAV</span></div>
+                <div className="mb-row"><span>Receive</span><span>USDC back to your wallet</span></div>
+                <div className="mb-row"><span>Available</span><span>anytime · even if the agent is offline</span></div>
+              </div>
+            ) : (
+              <div className="modal-breakdown">
+                <div className="mb-row"><span>Projected 1Y return</span><span className="pos">+${Math.round(est).toLocaleString()}</span></div>
+                <div className="mb-row"><span>Performance fee</span><span>10% of profit</span></div>
+                <div className="mb-row"><span>Settlement</span><span>{onChain ? (env === "live" ? "Base · vault shares at NAV" : "Base Sepolia · vault shares") : "anytime · T+0"}</span></div>
+              </div>
+            )}
+            <button className="modal-go" disabled={busy || amt <= 0} onClick={withdrawing ? doWithdraw : doDeposit}>
+              {busy ? "Confirming…"
+                : withdrawing ? "↩ Withdraw " + amt.toLocaleString() + " shares"
+                : isAgent ? "⚡ Allocate $" + amt.toLocaleString()
+                : (onChain ? "＋ Deposit $" + amt.toLocaleString() + " USDC" : "＋ Deposit $" + amt.toLocaleString())}
             </button>
             <span className="modal-fine">
-              {real
-                ? (isAddr(vaultAddr)
-                    ? (auth.sponsored
-                        ? "Mints vault shares at the current NAV. Gas sponsored — no ETH needed."
-                        : "Mints vault shares at the current NAV. Approve + deposit — needs a little ETH for gas.")
-                    : isAddr(depositAddr)
+              {withdrawing
+                ? "Redeems your shares from the on-chain vault at NAV — works regardless of whether the agent's host is up."
+                : real
+                  ? (isAddr(vaultAddr)
                       ? (auth.sponsored
-                          ? "A real USDC transfer to the strategy treasury. Gas sponsored — no ETH needed."
-                          : "A real USDC transfer to the strategy treasury. Needs a little ETH for gas.")
-                      : "Demo: deploy a vault and set VITE_VAULTS to route real deposits.")
-                : "Capital is managed autonomously. Agents can lose money. Past performance ≠ future results."}
+                          ? "Mints vault shares at the current NAV. Gas sponsored — no ETH needed."
+                          : "Mints vault shares at the current NAV. Approve + deposit — needs a little ETH for gas.")
+                      : isAddr(depositAddr)
+                        ? (auth.sponsored
+                            ? "A real USDC transfer to the strategy treasury. Gas sponsored — no ETH needed."
+                            : "A real USDC transfer to the strategy treasury. Needs a little ETH for gas.")
+                        : "Demo: deploy a vault and set VITE_VAULTS to route real deposits.")
+                  : "Capital is managed autonomously. Agents can lose money. Past performance ≠ future results."}
             </span>
+            {!isAgent && (
+              <span className="modal-prot">🛡 Non-custodial — funds sit in the vault, never with the agent. Withdraw anytime (even if the agent's host is down). A kill switch can flatten positions &amp; return funds.</span>
+            )}
           </div>
         )}
       </div>

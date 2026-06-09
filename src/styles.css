@@ -607,6 +607,11 @@ html[data-scanlines="off"] body{background:
 .liveprof-prot li{font-size:12.5px;color:var(--muted);line-height:1.5;padding-left:18px;position:relative;}
 .liveprof-prot li::before{content:"🛡";position:absolute;left:0;font-size:11px;}
 .liveprof-prot li b{color:var(--text);}
+.uptime-chip{font-size:10.5px;font-weight:600;margin-left:6px;white-space:nowrap;}
+.dep-tabs{display:flex;gap:6px;margin-bottom:12px;}
+.dep-tabs button{flex:1;padding:8px;border:1px solid var(--border);border-radius:var(--radius);font-size:12.5px;color:var(--muted);}
+.dep-tabs button.on{border-color:var(--accent);color:var(--accent);background:rgba(194,247,63,0.08);}
+.modal-prot{display:block;margin-top:10px;font-size:10.5px;color:var(--muted2);line-height:1.5;border-top:1px solid var(--border);padding-top:8px;}
 .persist-note{display:flex;align-items:center;gap:10px;justify-content:space-between;font-size:11.5px;color:var(--muted);background:rgba(255,181,71,0.08);border:1px solid rgba(255,181,71,0.35);border-radius:var(--radius);padding:9px 12px;margin-bottom:14px;}
 .persist-note button{color:var(--muted2);font-size:13px;padding:0 4px;}
 .persist-note button:hover{color:var(--text);}

@@ -3,6 +3,20 @@ import React from 'react';
 import { fmtUSD as sFmt, pct as sPct, k as sK, Avatar as SAvatar } from './ui.jsx';
 import { STRATEGIES as S_STRATS, agentBy as sAgentBy } from './data.js';
 import { strategyDetail as sStratDetail } from './detailData.js';
+import { uptimeStats } from '../lib/uptime.js';
+
+// Reliability chip for live (deployer-hosted) agents — hidden for static demo agents.
+function UptimeChip({ a }) {
+  if (!a || !a.lastSeenAt) return null;
+  const u = uptimeStats(a, 86400000);
+  if (!u.tracked) return null;
+  return (
+    <span className="uptime-chip" style={{ color: u.up ? "var(--accent)" : "#ff6b6b" }}
+      title={`${u.up ? "running" : "down"} · ${u.uptimePct != null ? u.uptimePct.toFixed(1) : 0}% uptime (24h)`}>
+      {u.up ? "●" : "○"} {u.uptimePct != null ? Math.round(u.uptimePct) : 0}%
+    </span>
+  );
+}
 
 // ---------- section header ----------
 export function SectionHead({ title, sub }) {
@@ -27,6 +41,7 @@ export function AgentsGrid({ agents, mode, onOpenAgent, onDeposit, onBet }) {
               <span className="ag-card-handle">@{a.handle} · #{a.rank}</span>
             </div>
             <span className={"ph-status " + (a.live ? "on" : "off")}>{a.live ? "● LIVE" : "○ PAUSED"}</span>
+            <UptimeChip a={a} />
           </div>
           {a.badge && <span className="ag-card-badge" style={{ color: a.color, borderColor: a.color + "55" }}>★ {a.badge}</span>}
           <p className="ag-card-bio">{a.bio}</p>
@@ -65,7 +80,7 @@ export function Leaderboard({ agents, onOpenAgent }) {
           <span className="num">{sFmt(a.aum)}</span>
           <span className="num">{a.win}%</span>
           <span className="num">{sK(a.depositors)}</span>
-          <span className={"lb-status " + (a.live ? "on" : "off")}>{a.live ? "● live" : "○ paused"}</span>
+          <span className={"lb-status " + (a.live ? "on" : "off")}>{a.lastSeenAt ? <UptimeChip a={a} /> : (a.live ? "● live" : "○ paused")}</span>
         </button>
       ))}
     </div>
