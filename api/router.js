@@ -13,6 +13,7 @@ import leaderboard from "../lib/routes/leaderboard.js";
 import markets from "../lib/routes/markets.js";
 import marks from "../lib/routes/marks.js";
 import mine from "../lib/routes/mine.js";
+import ping from "../lib/routes/ping.js";
 import pauseAll from "../lib/routes/pause-all.js";
 import registerAgent from "../lib/routes/register-agent.js";
 import registerVault from "../lib/routes/register-vault.js";
@@ -31,6 +32,7 @@ const ROUTES = {
   markets,
   marks,
   mine,
+  ping,
   "pause-all": pauseAll,
   "register-agent": registerAgent,
   "register-vault": registerVault,

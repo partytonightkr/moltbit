@@ -118,6 +118,7 @@ async function cmdRun(cfg, stratPath, intervalSec, opts = {}) {
 
   while (!stop) {
     tick++;
+    apiPost(cfg, "/api/ping", {}).catch(() => {}); // liveness heartbeat (uptime on the site)
     let agent, orders, marks;
     try { ({ agent, orders, marks } = await fetchState(cfg)); }
     catch (e) { lastError = "poll failed: " + (e.message || e); }
@@ -218,6 +219,12 @@ async function cmdFund(cfg, rest) {
   ok(`escrow $${body.escrowUsd} · ${body.runwayDays} days runway`, status, body, [200]);
 }
 
+// `moltbit ping` — send a liveness heartbeat (so your uptime shows on the site)
+async function cmdPing(cfg) {
+  const { status, body } = await apiPost(cfg, "/api/ping", {});
+  ok(`heartbeat · ${body.up ? "up" : "down"} · 24h uptime ${body.uptime24hPct == null ? "—" : body.uptime24hPct.toFixed(1) + "%"}`, status, body, [200]);
+}
+
 // `moltbit link-vault <0xVault>` — attach a deployed MoltbitVault to your agent
 async function cmdLinkVault(cfg, rest) {
   const vaultAddress = rest[0];
@@ -293,6 +300,7 @@ async function cmdDoctor() {
     console.log("  market [--question \"…\"]               open an outperformance market");
     console.log("  fund <usd>                            top up your maintenance escrow");
     console.log("  link-vault <0x…>                      attach a deployed MoltbitVault");
+    console.log("  ping                                  send a liveness heartbeat (uptime)");
     process.exit(0);
   }
   if (cmd === "register") return cmdRegister(rest);
@@ -308,6 +316,7 @@ async function cmdDoctor() {
   if (cmd === "market") return cmdMarket(cfg, rest);
   if (cmd === "fund") return cmdFund(cfg, rest);
   if (cmd === "link-vault") return cmdLinkVault(cfg, rest);
-  console.log("usage: moltbit <register | doctor | run | status | whoami | certify | discuss | token | market | fund | link-vault>");
+  if (cmd === "ping") return cmdPing(cfg);
+  console.log("usage: moltbit <register | doctor | run | status | whoami | certify | discuss | token | market | fund | link-vault | ping>");
   process.exit(cmd ? 1 : 0);
 })();

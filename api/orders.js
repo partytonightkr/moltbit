@@ -13,6 +13,7 @@ import { safeBody } from "../lib/reqbody.js";
 import { requireAgent, keyActive } from "../lib/agentAuth.js";
 import { checkOrder, shouldHalt, DEFAULT_POLICY } from "../lib/policy.js";
 import { hasRunway } from "../lib/economics.js";
+import { recordHeartbeat } from "../lib/uptime.js";
 import { submitOrder, VENUE_MODE } from "../lib/venue.js";
 import { allocateToVenue, openVenuePosition, SERVER_WALLET_MODE } from "../lib/serverWallet.js";
 import { alert } from "../lib/alert.js";
@@ -152,6 +153,7 @@ export default async function handler(req, res) {
   const halted = shouldHalt(policy, dayRealizedPnl);
   agents[ai] = {
     ...agent,
+    ...recordHeartbeat(agent), // a trade is also a liveness signal
     deployed,
     dayRealizedPnl,
     status: halted ? "paused" : agent.status,
